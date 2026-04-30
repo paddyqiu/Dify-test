@@ -4,6 +4,8 @@ import re
 import os
 from neo4j import GraphDatabase
 from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from rapidfuzz import fuzz
+from rapidfuzz import process as rf_process
 
 # ===== path helper =====
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
