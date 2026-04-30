@@ -1,0 +1,160 @@
+{
+  "certification_lookup": {
+    "payload_field": "certification",
+    "label": "Certification",
+    "return_key": "certification_info",
+    "properties": ["name", "region", "type", "standard"],
+    "relations": [
+      {
+        "direction": "in",
+        "source_label": "Project",
+        "relation": "HAS_CERTIFICATION",
+        "field": "related_projects"
+      },
+      {
+        "direction": "in",
+        "source_label": "Component",
+        "relation": "HAS_CERTIFICATION",
+        "field": "related_components"
+      },
+      {
+        "direction": "in",
+        "source_label": "Process",
+        "relation": "MUST_ALIGN_TEST_WITH",
+        "field": "related_processes"
+      }
+    ]
+  },
+
+  "component_lookup": {
+    "payload_field": "component",
+    "label": "Component",
+    "return_key": "component_info",
+    "properties": ["name", "category", "product_code", "customer_model", "brand", "rated_capacity"],
+    "relations": [
+      {
+        "direction": "in",
+        "source_label": "Project",
+        "relation": "INCLUDES",
+        "field": "related_projects"
+      },
+      {
+        "direction": "in",
+        "source_label": "Partner",
+        "relation": "SUPPLIES",
+        "field": "suppliers"
+      },
+      {
+        "direction": "out",
+        "target_label": "Material",
+        "relation": "USES_SPECIFIC_PART",
+        "field": "materials"
+      },
+      {
+        "direction": "out",
+        "target_label": "Certification",
+        "relation": "HAS_CERTIFICATION",
+        "field": "certifications"
+      }
+    ]
+  },
+
+  "department_lookup": {
+    "payload_field": "department",
+    "label": "Department",
+    "return_key": "department_info",
+    "properties": ["name"],
+    "relations": [
+      {
+        "direction": "in",
+        "source_label": "Project",
+        "relation": "MUST_DISCUSS_WITH",
+        "field": "related_projects"
+      },
+      {
+        "direction": "in",
+        "source_label": "Partner",
+        "relation": "REQUIRES_CHAMBER_TEST_BY",
+        "field": "related_partners"
+      },
+      {
+        "direction": "in",
+        "source_label": "Partner",
+        "relation": "REQUIRES_HW_ADC_SIMULATION_BY",
+        "field": "related_partners"
+      },
+      {
+        "direction": "in",
+        "source_label": "Partner",
+        "relation": "REQUIRES_BEND_TEST_REVIEW",
+        "field": "related_partners"
+      },
+      {
+        "direction": "in",
+        "source_label": "Process",
+        "relation": "MUST_DISCUSS_WITH",
+        "field": "related_processes"
+      }
+    ]
+  },
+
+  "material_lookup": {
+    "payload_field": "material",
+    "label": "Material",
+    "return_key": "material_info",
+    "properties": ["name", "brand", "type"],
+    "relations": [
+      {
+        "direction": "in",
+        "source_label": "Component",
+        "relation": "USES_SPECIFIC_PART",
+        "field": "related_components"
+      },
+      {
+        "direction": "in",
+        "source_label": "Component",
+        "relation": "USES_MATERIAL",
+        "field": "related_components"
+      },
+      {
+        "direction": "in",
+        "source_label": "Process",
+        "relation": "REQUIRES_SPEC_ALIGNMENT",
+        "field": "related_processes"
+      }
+    ]
+  },
+
+  "partner_lookup": {
+    "payload_field": "partner",
+    "label": "Partner",
+    "return_key": "partner_info",
+    "properties": ["name", "type"],
+    "relations": [
+      {
+        "direction": "out",
+        "target_label": "Component",
+        "relation": "SUPPLIES",
+        "field": "supplied_components"
+      },
+      {
+        "direction": "out",
+        "target_label": "Department",
+        "relation": "REQUIRES_CHAMBER_TEST_BY",
+        "field": "related_departments"
+      },
+      {
+        "direction": "out",
+        "target_label": "Department",
+        "relation": "REQUIRES_HW_ADC_SIMULATION_BY",
+        "field": "related_departments"
+      },
+      {
+        "direction": "out",
+        "target_label": "Department",
+        "relation": "REQUIRES_BEND_TEST_REVIEW",
+        "field": "related_departments"
+      }
+    ]
+  }
+}

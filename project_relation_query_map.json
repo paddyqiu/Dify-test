@@ -1,0 +1,26 @@
+{
+  "HAS_CERTIFICATION": {
+    "target_label": "Certification",
+    "return_key": "certifications"
+  },
+  "HAS_PROCESS": {
+    "target_label": "Process",
+    "return_key": "processes"
+  },
+  "INCLUDES": {
+    "target_label": "Component",
+    "return_key": "components"
+  },
+  "MUST_DISCUSS_WITH": {
+    "target_label": "Department",
+    "return_key": "departments"
+  },
+  "USES_MATERIAL": {
+    "target_label": "Material",
+    "return_key": "materials"
+  },
+  "USES_SPECIFIC_PART": {
+    "target_label": "Material",
+    "return_key": "materials"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "Project": {
+    "display_name": "專案",
+    "name_fields": ["name"],
+    "aliases": ["project", "專案", "項目"]
+  },
+  "Component": {
+    "display_name": "元件",
+    "name_fields": ["name"],
+    "aliases": ["component", "元件", "零件", "產品"]
+  },
+  "Material": {
+    "display_name": "材料",
+    "name_fields": ["name"],
+    "aliases": ["material", "材料", "用料", "膠材"]
+  },
+  "Process": {
+    "display_name": "製程",
+    "name_fields": ["name"],
+    "aliases": ["process", "製程", "流程", "步驟"]
+  },
+  "Certification": {
+    "display_name": "認證",
+    "name_fields": ["name"],
+    "aliases": ["certification", "認證", "標準"]
+  },
+  "Department": {
+    "display_name": "部門",
+    "name_fields": ["name"],
+    "aliases": ["department", "部門", "團隊"]
+  },
+  "Partner": {
+    "display_name": "合作夥伴",
+    "name_fields": ["name"],
+    "aliases": ["partner", "供應商", "廠商"]
+  },
+  "Lesson_Learned": {
+    "display_name": "教訓案例",
+    "name_fields": ["title", "name"],
+    "aliases": ["lesson", "lesson learned", "經驗", "教訓", "案例"]
+  }
+}

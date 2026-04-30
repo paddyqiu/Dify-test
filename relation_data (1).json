@@ -1,0 +1,134 @@
+{
+  "INCLUDES": {
+    "category": "structure",
+    "display_name": "包含",
+    "description": "表示此節點包含另一個子項目或組成",
+    "aliases": ["include", "includes", "包含", "元件", "component", "零件"]
+  },
+  "HAS_PROCESS": {
+    "category": "structure",
+    "display_name": "製程",
+    "description": "表示此節點包含某個製程",
+    "aliases": ["process", "製程", "流程", "步驟"]
+  },
+  "USES_SPECIFIC_PART": {
+    "category": "structure",
+    "display_name": "使用特定零件",
+    "description": "表示此節點使用某個特定材料或零件",
+    "aliases": ["specific part", "specific material", "特定零件", "特定材料", "零件材料"]
+  },
+  "USES_MATERIAL": {
+    "category": "structure",
+    "display_name": "使用材料",
+    "description": "表示此節點使用某種材料",
+    "aliases": ["material", "材料", "用料", "膠材"]
+  },
+  "HAS_LESSON": {
+    "category": "lesson",
+    "display_name": "教訓案例",
+    "description": "表示此節點關聯到一個 lesson learned",
+    "aliases": ["lesson", "lesson learned", "經驗", "教訓", "失敗案例", "案例"]
+  },
+  "AFFECTS_COMPONENT": {
+    "category": "impact",
+    "display_name": "影響元件",
+    "description": "表示此問題或變更影響某個元件",
+    "aliases": ["影響元件", "影響零件", "affects component"]
+  },
+  "AFFECTS_SPECIFIC_PART": {
+    "category": "impact",
+    "display_name": "影響材料",
+    "description": "表示此問題或變更影響某個材料",
+    "aliases": ["影響材料", "影響特定零件", "affects material", "affects specific part"]
+  },
+  "PROCESS_CHANGED_TO": {
+    "category": "process_change",
+    "display_name": "製程變更為",
+    "description": "表示製程被改為另一種",
+    "aliases": ["製程變更為", "改成", "changed to", "process changed to"]
+  },
+  "PROCESS_CHANGED_FROM": {
+    "category": "process_change",
+    "display_name": "製程原本為",
+    "description": "表示製程原本狀態",
+    "aliases": ["製程原本為", "原本", "changed from", "process changed from"]
+  },
+  "REQUIRES_DESIGN_CONFIRMATION": {
+    "category": "responsibility",
+    "display_name": "需設計確認",
+    "description": "需要設計單位進行確認",
+    "aliases": ["設計確認", "design confirmation"]
+  },
+  "REQUIRES_HW_ADC_SIMULATION_BY": {
+    "category": "responsibility",
+    "display_name": "需進行 HW ADC 模擬",
+    "description": "需由相關單位進行硬體 ADC 模擬",
+    "aliases": ["HW ADC", "ADC 模擬", "硬體 ADC 模擬"]
+  },
+  "REQUIRES_CHAMBER_TEST_BY": {
+    "category": "responsibility",
+    "display_name": "需進行 Chamber 測試",
+    "description": "需由相關單位進行環境測試",
+    "aliases": ["chamber", "chamber test", "環境測試"]
+  },
+  "REQUIRES_BEND_TEST_REVIEW": {
+    "category": "responsibility",
+    "display_name": "需彎折測試審查",
+    "description": "需對彎折測試結果進行審查",
+    "aliases": ["bend test", "彎折測試", "彎折測試審查"]
+  },
+  "REQUIRES_EVALUATION_FROM": {
+    "category": "responsibility",
+    "display_name": "需評估",
+    "description": "需由特定單位進行評估",
+    "aliases": ["評估", "evaluation", "需評估"]
+  },
+  "REQUIRES_SPEC_ALIGNMENT": {
+    "category": "responsibility",
+    "display_name": "需規格對齊",
+    "description": "需進行規格確認與對齊",
+    "aliases": ["規格對齊", "spec alignment", "規格確認"]
+  },
+  "MUST_INVITE_FOR_EVALUATION": {
+    "category": "responsibility",
+    "display_name": "需邀請評估",
+    "description": "需邀請相關單位參與評估",
+    "aliases": ["邀請評估", "invite for evaluation"]
+  },
+  "COWORK_ON_TEST_PLAN": {
+    "category": "responsibility",
+    "display_name": "共同制定測試計畫",
+    "description": "需共同協作完成測試計畫",
+    "aliases": ["測試計畫", "共同測試", "test plan"]
+  },
+  "FINAL_APPROVAL_BY": {
+    "category": "responsibility",
+    "display_name": "最終核准",
+    "description": "由此單位或角色進行最終核准",
+    "aliases": ["最終核准", "final approval", "核准"]
+  },
+  "MUST_DISCUSS_WITH": {
+    "category": "responsibility",
+    "display_name": "需討論",
+    "description": "需與指定單位討論",
+    "aliases": ["department", "部門", "團隊", "參與", "相關部門", "討論"]
+  },
+  "HAS_CERTIFICATION": {
+    "category": "certification",
+    "display_name": "認證",
+    "description": "表示此節點具有某項認證",
+    "aliases": ["certification", "認證", "標準"]
+  },
+  "SUPPLIES": {
+    "category": "supply",
+    "display_name": "供應",
+    "description": "表示此供應商提供某項元件或材料",
+    "aliases": ["供應", "supplier", "vendor", "廠商", "供應商"]
+  },
+  "MUST_ALIGN_TEST_WITH": {
+    "category": "responsibility",
+    "display_name": "需測試對齊",
+    "description": "需與指定測試或認證標準對齊",
+    "aliases": ["測試對齊", "test alignment", "align test", "認證測試對齊"]
+  }
+}
