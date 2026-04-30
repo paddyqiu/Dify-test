@@ -69,32 +69,5 @@ def line_webhook():
 
     return "OK", 200
 
-
-# ===== 啟動區（重點）=====
-if __name__ == "__main__":
-
-    # 設定 ngrok token
-    from config import NGROK_AUTH_TOKEN
-
-    NGROK_TOKEN = NGROK_AUTH_TOKEN
-    if not NGROK_TOKEN:
-        raise Exception("請先設定 NGROK_AUTH_TOKEN")
-
-    ngrok.set_auth_token(NGROK_TOKEN)
-
-    # 關閉舊 tunnel（避免錯誤）
-    try:
-        for t in ngrok.get_tunnels():
-            ngrok.disconnect(t.public_url)
-    except:
-        pass
-
-    public_url = ngrok.connect(5000).public_url
-
-    print("🚀 Server running")
-    print("LINE webhook:", public_url + "/line/webhook")
-    print("Dify graph API:", public_url + "/graph/query")
-    print("Neo4j test:", public_url + "/test/neo4j")
-
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
