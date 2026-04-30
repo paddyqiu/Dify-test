@@ -4,7 +4,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-STATIC_DIR = "/content/test/static"
+STATIC_DIR = "static"
 
 
 def ensure_static_dir():
