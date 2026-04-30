@@ -1,8 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 from graph_service import query_graph_by_router, test_neo4j
 from line_service import handle_line_event
-
-from pyngrok import ngrok
 import os
 
 app = Flask(__name__)
