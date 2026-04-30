@@ -11,13 +11,13 @@ from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USER
 # ==============================================================================
 # 1. JSON / Schema Load
 # ==============================================================================
-with open("/content/test/node_schema.json", "r", encoding="utf-8") as f:
+with open("node_schema.json", "r", encoding="utf-8") as f:
     NODE_SCHEMA = json.load(f)
-with open("/content/test/relation_data.json", "r", encoding="utf-8") as f:
+with open("relation_data.json", "r", encoding="utf-8") as f:
     RELATION_META = json.load(f)
-with open("/content/test/lookup_config.json", "r", encoding="utf-8") as f:
+with open("lookup_config.json", "r", encoding="utf-8") as f:
     GENERIC_LOOKUP_CONFIG = json.load(f)
-with open("/content/test/project_relation_query_map.json", "r", encoding="utf-8") as f:
+with open("project_relation_query_map.json", "r", encoding="utf-8") as f:
     PROJECT_RELATION_QUERY_MAP = json.load(f)
 
 # ==============================================================================
