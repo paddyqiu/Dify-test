@@ -1,29 +1,23 @@
-from datetime import date, datetime
+# ===== imports =====
 import json
-
+import re
+import os
 from neo4j import GraphDatabase
-from rapidfuzz import fuzz
-from rapidfuzz import process as rf_process
+from config import NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 
-from config import NEO4J_PASSWORD, NEO4J_URI, NEO4J_USER
+# ===== path helper =====
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-print("=== ENV CHECK ===")
-print("NEO4J_URI exists:", bool(NEO4J_URI))
-print("NEO4J_USER exists:", bool(NEO4J_USER))
-print("NEO4J_PASSWORD exists:", bool(NEO4J_PASSWORD))
-print("=================")
+def load_json(filename):
+    path = os.path.join(BASE_DIR, filename)
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
-# ==============================================================================
-# 1. JSON / Schema Load
-# ==============================================================================
-with open("node_schema.json", "r", encoding="utf-8") as f:
-    NODE_SCHEMA = json.load(f)
-with open("relation_data.json", "r", encoding="utf-8") as f:
-    RELATION_META = json.load(f)
-with open("lookup_config.json", "r", encoding="utf-8") as f:
-    GENERIC_LOOKUP_CONFIG = json.load(f)
-with open("project_relation_query_map.json", "r", encoding="utf-8") as f:
-    PROJECT_RELATION_QUERY_MAP = json.load(f)
+# ===== load config =====
+NODE_SCHEMA = load_json("node_schema.json")
+RELATION_META = load_json("relation_data.json")
+GENERIC_LOOKUP_CONFIG = load_json("lookup_config.json")
+PROJECT_RELATION_QUERY_MAP = load_json("project_relation_query_map.json")
 
 # ==============================================================================
 # 2. Schema-Derived Fields
@@ -84,7 +78,11 @@ RELATION_HINTS = {
 # ==============================================================================
 # 4. Neo4j Driver
 # ==============================================================================
-driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
+def get_driver():
+    return GraphDatabase.driver(
+        NEO4J_URI,
+        auth=(NEO4J_USER, NEO4J_PASSWORD)
+    )
 
 
 # ==============================================================================
@@ -136,10 +134,12 @@ def sanitize_result(rows):
 # 6. Database / Schema Helper Functions
 # ==============================================================================
 def run_cypher(query, params=None):
+    driver = get_driver()
     with driver.session() as session:
         result = session.run(query, params or {})
         rows = [record.data() for record in result]
-        return sanitize_result(rows)
+    driver.close()
+    return sanitize_result(rows)
 def get_name_fields(label):
     return NODE_SCHEMA.get(label, {}).get("name_fields", ["name"])
 def get_node_properties(label):
