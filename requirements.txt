@@ -1,5 +1,7 @@
 flask
 requests
+neo4j
+rapidfuzz
 networkx
 matplotlib
-neo4j
+gunicorn
