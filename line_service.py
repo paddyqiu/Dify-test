@@ -6,7 +6,7 @@ from graph_image_service import generate_relation_graph_image
 from graph_service import query_graph_by_router
 
 
-PUBLIC_BASE_URL = "https://b4ff-35-233-227-220.ngrok-free.app"
+from config import PUBLIC_BASE_URL
 
 
 def reply_line_text_and_image(reply_token, text, image_url=None):
