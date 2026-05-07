@@ -227,11 +227,17 @@ def find_candidate_nodes(raw_text, score_cutoff=70, max_results=5):
             name_str = str(name).strip()
             name_lower = name_str.lower()
 
-            score = fuzz.WRatio(raw, name_lower)
+            # 1. 完全相同：最高分
+            if raw == name_lower:
+                score = 100
 
-            # 關鍵：只要名稱包含 raw，就強制視為高分候選
-            if raw in name_lower:
-                score = max(score, 95)
+            # 2. 部分包含：只給中高分，不要蓋過 exact match
+            elif raw in name_lower:
+                score = max(fuzz.WRatio(raw, name_lower), 85)
+
+            # 3. 一般模糊比對
+            else:
+                score = fuzz.WRatio(raw, name_lower)
 
             if score >= score_cutoff:
                 candidates.append({
@@ -240,7 +246,7 @@ def find_candidate_nodes(raw_text, score_cutoff=70, max_results=5):
                     "score": score
                 })
 
-    # 去重
+    # 去重，同名同 label 只保留最高分
     unique = {}
     for c in candidates:
         key = (c["name"], c["label"])
@@ -248,8 +254,18 @@ def find_candidate_nodes(raw_text, score_cutoff=70, max_results=5):
             unique[key] = c
 
     candidates = list(unique.values())
-    candidates.sort(key=lambda x: x["score"], reverse=True)
 
+    # 排序：score 高優先；完全相同優先；名稱短的優先
+    candidates.sort(
+        key=lambda x: (
+            x["score"],
+            str(x["name"]).strip().lower() == raw,
+            -len(str(x["name"]))
+        ),
+        reverse=True
+    )
+
+    return candidates[:max_results]
     return candidates[:max_results]
 def fuzzy_match_one(query, candidates, score_cutoff=60):
     if not query or not candidates:
@@ -436,55 +452,62 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
     統一處理 node_lookup 的目標節點與查詢模式。
 
     規則：
-    1. 如果整句本身就是某個節點名稱，優先視為單節點查詢。
-    2. 如果不是完整節點名稱，但有 relation_hint，視為「某節點 + 某類關係」查詢。
-    3. 如果沒有 relation_hint，視為單節點查詢。
+    1. 完全相同名稱優先，直接查該節點。
+    2. 若有 relation_hint，代表「某節點 + 某類關係」查詢。
+    3. 若只有模糊候選且多筆，才要求使用者選擇。
     """
     raw_question = clean_text(user_question) or ""
     raw_question = raw_question.strip()
-    
-    # 只有在冒號後面是明顯查詢詞時才切
-    query_suffixes = ["原始問題", "製程", "流程", "材料", "認證", "標準", "部門", "lesson", "教訓"]
-    
+
+    query_suffixes = [
+        "原始問題",
+        "製程",
+        "流程",
+        "材料",
+        "認證",
+        "標準",
+        "部門",
+        "lesson",
+        "教訓"
+    ]
+
     for suffix in query_suffixes:
         marker = ":" + suffix
         if raw_question.endswith(marker):
             raw_question = raw_question[:-len(marker)].strip()
             break
 
-    # 先用整句做全節點比對：處理「FPC Failure due to LPI process change」這種完整 title
     raw_candidates = find_candidate_nodes(
         raw_question,
-        score_cutoff=85,
+        score_cutoff=70,
         max_results=5
     ) if raw_question else []
 
-    if raw_candidates:
-        best = raw_candidates[0]
-
-        # 完全匹配或高分唯一候選：直接當成單節點查詢
-        # ===== 先檢查完全相同 =====
+    # ===== 1. 完全相同名稱優先 =====
     exact_matches = []
-    
+
     for c in raw_candidates:
         candidate_name = str(c.get("name", "")).strip().lower()
-    
         if candidate_name == raw_question.lower():
             exact_matches.append(c)
-    
-    # ===== 只有一個完全相同：直接使用 =====
-    if len(exact_matches) == 1:
-        best = exact_matches[0]
-    
-        return {
-            "label": best["label"],
-            "matched": best["name"],
-            "score": 100,
-            "input": raw_question
-        }, "single_node_detail", None
-    
-    # ===== 多個完全相同：才 ambiguous =====
-    if len(exact_matches) > 1:
+
+    if exact_matches:
+        unique_exact = {}
+        for c in exact_matches:
+            key = (c["name"], c["label"])
+            unique_exact[key] = c
+
+        exact_matches = list(unique_exact.values())
+
+        if len(exact_matches) == 1:
+            best = exact_matches[0]
+            return {
+                "label": best["label"],
+                "matched": best["name"],
+                "score": 100,
+                "input": raw_question
+            }, "single_node_detail", None
+
         return None, "ambiguous_node", {
             "query_type": "ambiguous_node",
             "found": False,
@@ -492,30 +515,8 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
             "input": raw_question,
             "candidates": exact_matches[:5]
         }
-    
-    # ===== 原本 fuzzy matching 邏輯 =====
-    if raw_candidates:
-        best = raw_candidates[0]
-    
-        # 高分唯一候選
-        if best["score"] >= 95 and len(raw_candidates) == 1:
-            return {
-                "label": best["label"],
-                "matched": best["name"],
-                "score": best["score"],
-                "input": raw_question
-            }, "single_node_detail", None
-    
-        # 多候選
-        return None, "ambiguous_node", {
-            "query_type": "ambiguous_node",
-            "found": False,
-            "message": "找到多個可能節點，請選擇要查詢的項目",
-            "input": raw_question,
-            "candidates": raw_candidates[:5]
-        }
-    # 有 relation_hint 時，代表使用者問的是「某節點的某類關係」
-    # 此時不要用 lesson_keyword 當主節點，避免「教訓 / 原始問題」誤導。
+
+    # ===== 2. 有 relation_hint：節點 + 關係查詢 =====
     if relation_hint:
         entity_candidates = get_resolved_entity_candidates(
             resolved,
@@ -531,63 +532,59 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": best["input"]
             }, "node_relation_detail", None
 
-    # 沒有 relation_hint：從 Dify 已解析欄位裡選最高分節點
+    # ===== 3. 沒有 relation_hint：若只有一個高分候選，直接查 =====
+    if raw_candidates:
+        best = raw_candidates[0]
+
+        high_score_candidates = [
+            c for c in raw_candidates
+            if c.get("score", 0) >= 95
+        ]
+
+        if len(high_score_candidates) == 1:
+            best = high_score_candidates[0]
+            return {
+                "label": best["label"],
+                "matched": best["name"],
+                "score": best["score"],
+                "input": raw_question
+            }, "single_node_detail", None
+
+        if len(raw_candidates) == 1:
+            return {
+                "label": best["label"],
+                "matched": best["name"],
+                "score": best["score"],
+                "input": raw_question
+            }, "single_node_detail", None
+
+        return None, "ambiguous_node", {
+            "query_type": "ambiguous_node",
+            "found": False,
+            "message": "找到多個可能節點，請選擇要查詢的項目",
+            "input": raw_question,
+            "candidates": raw_candidates[:5]
+        }
+
+    # ===== 4. 從 Dify 已解析欄位選最高分 =====
     entity_candidates = get_resolved_entity_candidates(resolved)
 
     if entity_candidates:
         best = entity_candidates[0]
+        mode = "node_relation_detail" if relation_hint else "single_node_detail"
+
         return {
             "label": best["label"],
             "matched": best["matched"],
             "score": best["score"],
             "input": best["input"]
-        }, "single_node_detail", None
-
-    # 最後 fallback：拆欄位與原句再跑一次全域候選
-    fallback_inputs = []
-    for _, data in resolved.items():
-        if data.get("input"):
-            fallback_inputs.append(data["input"])
-
-    if raw_question:
-        fallback_inputs.append(raw_question)
-
-    all_candidates = []
-    for raw in fallback_inputs:
-        all_candidates.extend(find_candidate_nodes(raw, score_cutoff=70, max_results=5))
-
-    unique = {}
-    for c in all_candidates:
-        key = (c["name"], c["label"])
-        if key not in unique or c["score"] > unique[key]["score"]:
-            unique[key] = c
-
-    candidates = sorted(unique.values(), key=lambda x: x["score"], reverse=True)
-
-    if len(candidates) == 1:
-        best = candidates[0]
-        return {
-            "label": best["label"],
-            "matched": best["name"],
-            "score": best["score"],
-            "input": raw_question
-        }, "single_node_detail", None
-
-    if len(candidates) > 1:
-        return None, "ambiguous_node", {
-            "query_type": "ambiguous_node",
-            "found": False,
-            "message": "找到多個可能節點，請選擇要查詢的項目",
-            "input": fallback_inputs,
-            "candidates": candidates[:5]
-        }
+        }, mode, None
 
     return None, "single_node_detail", {
         "query_type": "single_node",
         "found": False,
         "message": "無法解析單一節點查詢對象"
     }
-
 def detect_node_query_mode(relation_hint):
     if relation_hint:
         return "node_relation_detail"
