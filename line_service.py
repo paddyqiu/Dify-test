@@ -8,6 +8,28 @@ from graph_service import query_graph_by_router
 
 from config import PUBLIC_BASE_URL
 
+def push_line_text(to_id, text):
+    url = "https://api.line.me/v2/bot/message/push"
+
+    headers = {
+        "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "to": to_id,
+        "messages": [
+            {
+                "type": "text",
+                "text": text[:5000]
+            }
+        ]
+    }
+
+    r = requests.post(url, headers=headers, json=payload, timeout=15)
+    print("LINE push status:", r.status_code, r.text)
+    return r
+
 
 def reply_line_text_and_image(reply_token, text, image_url=None):
     url = "https://api.line.me/v2/bot/message/reply"
