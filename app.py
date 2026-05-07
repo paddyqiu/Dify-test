@@ -128,7 +128,7 @@ def line_webhook():
             continue
 
         # 先立刻回覆，避免 LINE timeout
-        reply_line_text(reply_token, "正在查詢資料，稍後回覆結果。")
+        reply_line_text(reply_token, "")
 
         # 背景執行 Dify
         thread = threading.Thread(
