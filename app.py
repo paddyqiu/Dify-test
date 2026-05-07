@@ -2,13 +2,12 @@ import os
 import json
 import threading
 from flask import Flask, request, jsonify, send_from_directory
-
 from graph_service import query_graph_by_router, test_neo4j
 from line_service import (
     reply_line_text,
     push_line_text,
     call_dify,
-    is_bot_mentioned
+    should_reply
 )
 
 app = Flask(__name__)
@@ -122,10 +121,11 @@ def line_webhook():
             continue
 
         # 群組或聊天室：只有標註機器人才回應
-        if source_type in ["group", "room"]:
-            if not is_bot_mentioned(event):
-                print("群組訊息未標註 bot，不回應")
-                continue
+        ok, _ = should_reply(event)
+
+        if not ok:
+            print("群組訊息未標註 bot，不回應")
+            continue
 
         # 先立刻回覆，避免 LINE timeout
         reply_line_text(reply_token, "正在查詢資料，稍後回覆結果。")
