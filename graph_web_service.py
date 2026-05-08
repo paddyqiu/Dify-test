@@ -64,20 +64,20 @@ def generate_cypher_query(search_target):
         return """
         MATCH (n)-[r]->(m)
         RETURN n, r, m
-        LIMIT 100
+        LIMIT 30
         """, "全量概覽"
 
-    # 注意：這裡不要用 f-string 直接塞進 Cypher 的字串內做正式產品
-    # 目前是為了快速整合你的專題版本
     safe_target = search_target.replace("'", "\\'")
 
     query = f"""
     MATCH (n)
-    WHERE any(lbl IN labels(n) WHERE toLower(lbl) = toLower('{safe_target}'))
+    WHERE toLower(coalesce(n.name, n.title, n.issue_id, '')) = toLower('{safe_target}')
        OR toLower(coalesce(n.name, n.title, n.issue_id, '')) CONTAINS toLower('{safe_target}')
+    WITH n
+    LIMIT 1
     MATCH (n)-[r]-(m)
     RETURN n, r, m
-    LIMIT 100
+    LIMIT 50
     """
 
     return query, f"{search_target} 的圖譜"
