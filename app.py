@@ -7,7 +7,14 @@ from line_service import (
     reply_line_text,
     push_line_text,
     call_dify,
-    should_reply
+    should_reply,
+    remove_mention,
+    clean_line_text
+)
+from graph_web_service import (
+    is_graph_request,
+    build_graph_url,
+    render_graph_page
 )
 
 app = Flask(__name__)
@@ -66,11 +73,24 @@ def graph_query():
 
 
 # ===== 背景執行 Dify，完成後 push 給 LINE =====
-def run_dify_background(to_id, user_text):
+def run_dify_background(to_id, user_text, user_id="line-user"):
     try:
         print("背景任務開始:", user_text)
 
-        answer = call_dify(user_text)
+        # ===== 如果是圖譜請求，直接回傳圖譜連結，不進 Dify =====
+        if is_graph_request(user_text):
+            graph_url, label = build_graph_url(user_text)
+
+            reply_text = (
+                f"已生成 {label}：\n"
+                f"{graph_url}"
+            )
+
+            push_line_text(to_id, reply_text)
+            return
+
+        # ===== 一般問題才進 Dify =====
+        answer = call_dify(user_text, user_id=user_id)
 
         if not answer:
             answer = "查詢完成，但沒有取得有效結果。"
@@ -87,6 +107,9 @@ def run_dify_background(to_id, user_text):
 def static_files(filename):
     return send_from_directory("/content/test/static", filename)
 
+@app.route("/graph", methods=["GET"])
+def graph_page():
+    return render_graph_page()
 
 # ===== LINE Webhook =====
 @app.route("/line/webhook", methods=["POST"])
@@ -121,19 +144,18 @@ def line_webhook():
             continue
 
         # 群組或聊天室：只有標註機器人才回應
-        ok, _ = should_reply(event)
+        ok, text = should_reply(event)
 
         if not ok:
             print("群組訊息未標註 bot，不回應")
             continue
-
-        # 先立刻回覆，避免 LINE timeout
-        reply_line_text(reply_token, "")
-
-        # 背景執行 Dify
+        
+        cleaned_text = clean_line_text(remove_mention(text, event))
+        print("DEBUG cleaned_text =", cleaned_text)
+        
         thread = threading.Thread(
             target=run_dify_background,
-            args=(to_id, user_text),
+            args=(to_id, cleaned_text, source.get("userId", "line-user")),
             daemon=True
         )
         thread.start()
