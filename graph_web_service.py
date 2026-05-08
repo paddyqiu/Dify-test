@@ -1,7 +1,7 @@
 import urllib.parse
 from flask import request, render_template_string
 
-from config import PUBLIC_BASE_URL, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
+from config import PUBLIC_BASE_URL, NEO4J_BROWSER_URI, NEO4J_USER, NEO4J_PASSWORD
 
 
 def is_graph_request(text):
@@ -251,7 +251,7 @@ GRAPH_HTML = """
 def render_graph_page():
     return render_template_string(
         GRAPH_HTML,
-        neo4j_uri=NEO4J_URI,
+        neo4j_uri=NEO4J_BROWSER_URI,
         neo4j_user=NEO4J_USER,
         neo4j_password=NEO4J_PASSWORD
     )
