@@ -11,6 +11,7 @@ from graph_service import (
 )
 from line_service import (
     reply_line_text,
+    reply_line_text_and_image,
     push_line_text,
     push_line_text_and_image,
     call_dify,
@@ -27,7 +28,9 @@ from graph_web_service import (
 from graph_image_service import (
     generate_node_graph_image,
     generate_node_graph_image_bytes,
-    build_node_graph_image_url
+    generate_node_graph_image_bytes_by_id,
+    build_node_graph_image_url,
+    build_node_graph_image_url_by_id
 )
 
 app = Flask(__name__)
@@ -302,11 +305,18 @@ def static_files(filename):
 @app.route("/graph/image", methods=["GET"])
 def graph_image():
     target = request.args.get("target", "").strip()
+    node_id = request.args.get("node_id", "").strip()
 
-    if not target:
-        return "missing target", 400
+    if node_id:
+        image_io = generate_node_graph_image_bytes_by_id(node_id)
+        filename = "node_graph.png"
 
-    image_io = generate_node_graph_image_bytes(target)
+    elif target:
+        image_io = generate_node_graph_image_bytes(target)
+        filename = f"{target}_graph.png"
+
+    else:
+        return "missing target or node_id", 400
 
     if not image_io:
         return "image not found", 404
@@ -315,9 +325,8 @@ def graph_image():
         image_io,
         mimetype="image/png",
         as_attachment=False,
-        download_name=f"{target}_graph.png"
+        download_name=filename
     )
-
 @app.route("/graph", methods=["GET"])
 def graph_page():
     return render_graph_page()
