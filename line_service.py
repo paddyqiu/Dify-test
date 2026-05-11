@@ -1,7 +1,6 @@
 import requests
 
-from config import LINE_CHANNEL_ACCESS_TOKEN, DIFY_API_KEY, DIFY_BASE_URL
-
+from config import LINE_CHANNEL_ACCESS_TOKEN, DIFY_API_KEY, DIFY_BASE_URL, LINE_BOT_USER_ID
 
 def push_line_text(to_id, text):
     url = "https://api.line.me/v2/bot/message/push"
@@ -155,12 +154,20 @@ def should_reply(event):
     message = event.get("message", {})
     text = message.get("text", "")
 
+    # 私聊直接回覆
     if source.get("type") == "user":
         return True, text
 
-    mention = message.get("mention", {})
-    if mention and mention.get("mentionees"):
-        return True, text
+    # 群組 / 聊天室：只有標註到 Bot 自己才回覆
+    if source.get("type") in ["group", "room"]:
+        mention = message.get("mention", {})
+        mentionees = mention.get("mentionees", [])
+
+        for m in mentionees:
+            if m.get("userId") == LINE_BOT_USER_ID:
+                return True, text
+
+        return False, text
 
     return False, text
 
@@ -168,16 +175,17 @@ def should_reply(event):
 def remove_mention(text, event):
     message = event.get("message", {})
 
-    if "mention" not in message:
-        return text
-
     mention = message.get("mention", {})
+    mentionees = mention.get("mentionees", [])
+
     indices = []
 
-    for m in mention.get("mentionees", []):
-        start = m.get("index", 0)
-        end = start + m.get("length", 0)
-        indices.append((start, end))
+    for m in mentionees:
+        # 只移除 Bot 自己的 mention
+        if m.get("userId") == LINE_BOT_USER_ID:
+            start = m.get("index", 0)
+            end = start + m.get("length", 0)
+            indices.append((start, end))
 
     for start, end in sorted(indices, reverse=True):
         text = text[:start] + text[end:]
