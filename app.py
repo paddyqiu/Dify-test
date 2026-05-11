@@ -227,6 +227,13 @@ def run_dify_background(to_id, user_text, user_id="line-user", selection_key=Non
                 return
         
             image_url = build_node_graph_image_url(user_text)
+            if image_url:
+                push_line_text_and_image(
+                    to_id,
+                    answer,
+                    image_url=image_url
+                )
+                return
         # ===== 4. 其他問題只回文字 =====
         push_line_text(to_id, answer)
 
