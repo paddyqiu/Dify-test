@@ -51,6 +51,38 @@ def reply_line_text(reply_token, text):
     print("LINE reply:", r.status_code, r.text)
     return r
 
+def push_line_text_and_image(to_id, text, image_url=None):
+    url = "https://api.line.me/v2/bot/message/push"
+
+    headers = {
+        "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    messages = []
+
+    if text:
+        messages.append({
+            "type": "text",
+            "text": text[:5000]
+        })
+
+    if image_url:
+        messages.append({
+            "type": "image",
+            "originalContentUrl": image_url,
+            "previewImageUrl": image_url
+        })
+
+    payload = {
+        "to": to_id,
+        "messages": messages
+    }
+
+    r = requests.post(url, headers=headers, json=payload, timeout=15)
+    print("LINE push text/image status:", r.status_code, r.text)
+    return r
+
 def reply_line_text_and_image(reply_token, text, image_url=None):
     url = "https://api.line.me/v2/bot/message/reply"
 
