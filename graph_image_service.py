@@ -18,10 +18,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 FONT_PATH = os.path.join(
     BASE_DIR,
-    "fonts",
     "NotoSansCJKtc-Regular.otf"
 )
-
 try:
     font_manager.fontManager.addfont(FONT_PATH)
 
