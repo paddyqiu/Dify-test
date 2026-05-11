@@ -3,7 +3,12 @@ import re
 import json
 import threading
 from flask import Flask, request, jsonify, send_from_directory, send_file
-from graph_service import query_graph_by_router, test_neo4j
+from graph_service import (
+    query_graph_by_router,
+    test_neo4j,
+    find_exact_duplicate_nodes,
+    query_node_by_element_id
+)
 from line_service import (
     reply_line_text,
     push_line_text,
@@ -110,6 +115,32 @@ def extract_candidates_from_answer(answer):
                 candidates.append(name)
 
     return candidates
+def format_duplicate_candidates_message(user_text, candidates):
+    lines = []
+    lines.append(f"目前找到多個名稱為「{user_text}」的節點，請選擇要查詢的項目：")
+    lines.append("")
+
+    for i, c in enumerate(candidates, start=1):
+        name = c.get("name", "")
+        label = c.get("label", "Unknown")
+        props = c.get("props", {}) or {}
+
+        description_parts = []
+
+        for key in ["title", "issue", "root_cause", "department", "type"]:
+            if key in props and props[key]:
+                description_parts.append(f"{key}: {props[key]}")
+
+        description = ""
+        if description_parts:
+            description = "｜" + "；".join(description_parts[:2])
+
+        lines.append(f"{i}. {name}（{label}）{description}")
+
+    lines.append("")
+    lines.append("請直接輸入編號，例如：1 或 2。若輸入錯誤，系統會取消本次選擇。")
+
+    return "\n".join(lines)
         
 def is_simple_node_query(text):
     if not text:
@@ -152,6 +183,26 @@ def is_simple_node_query(text):
 def run_dify_background(to_id, user_text, user_id="line-user", selection_key=None):
     try:
         print("背景任務開始:", user_text)
+
+        # ===== 0. 同名節點檢查：完全相同名稱但不同節點 =====
+        if is_simple_node_query(user_text):
+            duplicate_candidates = find_exact_duplicate_nodes(user_text, limit=10)
+
+            if len(duplicate_candidates) > 1 and selection_key:
+                PENDING_SELECTIONS[selection_key] = {
+                    "mode": "node_id",
+                    "candidates": duplicate_candidates,
+                    "original_query": user_text,
+                    "user_id": user_id
+                }
+
+                message = format_duplicate_candidates_message(
+                    user_text,
+                    duplicate_candidates
+                )
+
+                push_line_text(to_id, message)
+                return
 
         # ===== 1. 明確要求圖譜：只回圖片 =====
         if is_graph_request(user_text):
@@ -315,25 +366,62 @@ def line_webhook():
 
         selection_key = build_selection_key(to_id, source)
 
-        if cleaned_text.isdigit() and selection_key in PENDING_SELECTIONS:
+       if cleaned_text.isdigit() and selection_key in PENDING_SELECTIONS:
             selection = int(cleaned_text)
             pending = PENDING_SELECTIONS.get(selection_key, {})
             candidates = pending.get("candidates", [])
+            mode = pending.get("mode", "name")
         
-            # 不管選對或選錯，只要進入選擇流程，就先清掉暫存
+            # 照你的需求：只要進入選擇流程，不管對錯都清除暫存
             del PENDING_SELECTIONS[selection_key]
         
-            if 1 <= selection <= len(candidates):
-                selected_node = candidates[selection - 1]
-                cleaned_text = selected_node
-                print("DEBUG selected candidate =", selected_node)
-        
-            else:
+            if not (1 <= selection <= len(candidates)):
                 reply_line_text(
                     reply_token,
                     f"編號 {selection} 不在候選範圍內，本次選擇已取消。請重新查詢。"
                 )
                 continue
+        
+            selected = candidates[selection - 1]
+        
+            # 情況 A：同名節點，用 node_id 查
+            if mode == "node_id":
+                selected_node_id = selected.get("node_id")
+                selected_name = selected.get("name", "")
+        
+                result = query_node_by_element_id(selected_node_id)
+        
+                if not result.get("found"):
+                    reply_line_text(reply_token, "查無相關資料")
+                    continue
+        
+                lines = []
+                lines.append(f"已選擇：{selected_name}（{result.get('label', 'Unknown')}）")
+                lines.append("")
+        
+                props = result.get("properties", {})
+                if props:
+                    lines.append("節點屬性：")
+                    for k, v in props.items():
+                        if v is not None and str(v).strip():
+                            lines.append(f"- {k}: {v}")
+                    lines.append("")
+        
+                relations = result.get("relations", [])
+                if relations:
+                    lines.append("相關關係：")
+                    for r in relations[:10]:
+                        lines.append(
+                            f"- {r.get('relation')} → {r.get('target_name')}（{r.get('target_label')}）"
+                        )
+        
+                reply_line_text(reply_token, "\n".join(lines))
+                continue
+        
+            # 情況 B：一般不同名稱候選，用 name 繼續查
+            selected_node = selected
+            cleaned_text = selected_node
+            print("DEBUG selected candidate =", selected_node)
         
         thread = threading.Thread(
             target=run_dify_background,
