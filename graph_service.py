@@ -91,6 +91,65 @@ def get_driver():
 # ==============================================================================
 # 5. Utility Functions
 # ==============================================================================
+def find_exact_duplicate_nodes(name, limit=10):
+    q = """
+    MATCH (n)
+    WHERE toLower(coalesce(n.name, n.title, n.issue_id, "")) = toLower($name)
+    RETURN
+        elementId(n) AS node_id,
+        coalesce(n.name, n.title, n.issue_id) AS name,
+        labels(n)[0] AS label,
+        properties(n) AS props
+    LIMIT $limit
+    """
+
+    return run_cypher(q, {
+        "name": name.strip(),
+        "limit": limit
+    })
+def query_node_by_element_id(node_id, limit=50):
+    q = """
+    MATCH (n)
+    WHERE elementId(n) = $node_id
+    OPTIONAL MATCH (n)-[r]-(m)
+    RETURN
+        elementId(n) AS node_id,
+        coalesce(n.name, n.title, n.issue_id) AS name,
+        labels(n)[0] AS label,
+        properties(n) AS properties,
+        collect({
+            relation: type(r),
+            target_id: elementId(m),
+            target_name: coalesce(m.name, m.title, m.issue_id),
+            target_label: labels(m)[0]
+        })[0..$limit] AS relations
+    """
+
+    rows = run_cypher(q, {
+        "node_id": node_id,
+        "limit": limit
+    })
+
+    if not rows:
+        return {
+            "found": False,
+            "message": "查無相關資料"
+        }
+
+    row = rows[0]
+
+    return {
+        "found": True,
+        "query_type": "node_by_id",
+        "node_id": row.get("node_id"),
+        "name": row.get("name"),
+        "label": row.get("label"),
+        "properties": row.get("properties", {}),
+        "relations": [
+            r for r in row.get("relations", [])
+            if r.get("relation") and r.get("target_name")
+        ]
+    }
 def clean_text(s):
     if s is None:
         return None
