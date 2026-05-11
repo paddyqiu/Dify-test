@@ -1,22 +1,38 @@
 import os
 import uuid
 import math
+import urllib.parse
+from io import BytesIO
 
 import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
-plt.rcParams['font.sans-serif'] = ['Noto Sans CJK JP']
-plt.rcParams['axes.unicode_minus'] = False
-import matplotlib.font_manager as fm
+from matplotlib import font_manager
 import networkx as nx
-from io import BytesIO
-import urllib.parse
 
 from graph_service import run_cypher
 from config import PUBLIC_BASE_URL
 
-STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+FONT_PATH = os.path.join(
+    BASE_DIR,
+    "fonts",
+    "NotoSansTC-VariableFont_wght"
+)
+
+font_manager.fontManager.addfont(FONT_PATH)
+
+CHINESE_FONT = font_manager.FontProperties(fname=FONT_PATH)
+CHINESE_FONT_NAME = CHINESE_FONT.get_name()
+
+plt.rcParams["font.family"] = CHINESE_FONT_NAME
+plt.rcParams["axes.unicode_minus"] = False
+
+
+STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 
 def wrap_label(text, max_chars=14):
