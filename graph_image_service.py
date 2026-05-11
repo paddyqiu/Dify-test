@@ -160,14 +160,18 @@ def generate_node_graph_image(target, limit=50):
     if len(G.nodes) == 0:
         return None
 
-    # ===== 手動做放射狀 layout =====
+    # ===== 字型 =====
+    chinese_font = get_chinese_font()
+
+    # ===== 放射狀 layout =====
     pos = {}
     pos[center] = (0, 0)
 
     neighbors = [n for n in G.nodes if n != center]
     count = len(neighbors)
-    
-    radius = 2.2 + min(count, 20) * 0.05
+
+    radius = 2.45 + min(count, 20) * 0.06
+
     for i, node in enumerate(neighbors):
         angle = 2 * math.pi * i / max(count, 1)
         pos[node] = (
@@ -175,10 +179,8 @@ def generate_node_graph_image(target, limit=50):
             radius * math.sin(angle)
         )
 
-    plt.figure(figsize=(15, 10))
-    ax = plt.gca()
+    fig, ax = plt.subplots(figsize=(15, 10))
     ax.set_facecolor("#f7f7f7")
-    chinese_font = get_chinese_font()
 
     label_color_map = {
         "Project": "#00D9E9",
@@ -203,6 +205,18 @@ def generate_node_graph_image(target, limit=50):
         else:
             node_sizes.append(3600)
 
+    # ===== 畫節點圓圈 =====
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        node_color=node_colors,
+        node_size=node_sizes,
+        edgecolors="#ffffff",
+        linewidths=2.2,
+        ax=ax
+    )
+
+    # ===== 畫線 =====
     nx.draw_networkx_edges(
         G,
         pos,
@@ -211,56 +225,20 @@ def generate_node_graph_image(target, limit=50):
         arrowsize=16,
         width=1.5,
         edge_color="#999999",
-        connectionstyle="arc3,rad=0.08"
+        connectionstyle="arc3,rad=0.06",
+        ax=ax
     )
 
+    # ===== 節點文字 =====
     node_labels = {
         node: wrap_label(node, max_chars=18 if node == center else 13)
         for node in G.nodes
     }
 
-    nx.draw_networkx_labels(
-        G,
-        pos,
-        labels=node_labels,
-        font_size=10,
-        font_color="black",
-        font_weight="bold"
-    )
-
-    for u, v, data in G.edges(data=True):
-        if u not in pos or v not in pos:
-            continue
-    
-        x1, y1 = pos[u]
-        x2, y2 = pos[v]
-    
-        mx = x1 * 0.42 + x2 * 0.58
-        my = y1 * 0.42 + y2 * 0.58
-    
-        plt.text(
-            mx,
-            my,
-            data.get("label", ""),
-            fontsize=7,
-            color="#555555",
-            fontweight="bold",
-            fontproperties=chinese_font,
-            ha="center",
-            va="center",
-            rotation=0,
-            bbox=dict(
-                facecolor="white",
-                edgecolor="none",
-                alpha=0.65,
-                pad=0.4
-            )
-        )
-
     for node, (x, y) in pos.items():
         is_center = node == center
-    
-        plt.text(
+
+        ax.text(
             x,
             y,
             node_labels[node],
@@ -271,21 +249,53 @@ def generate_node_graph_image(target, limit=50):
             ha="center",
             va="center",
             linespacing=1.15,
+            zorder=10
+        )
+
+    # ===== 關係文字 HAS_PROCESS / INCLUDES 等 =====
+    for u, v, data in G.edges(data=True):
+        if u not in pos or v not in pos:
+            continue
+
+        x1, y1 = pos[u]
+        x2, y2 = pos[v]
+
+        mx = x1 * 0.43 + x2 * 0.57
+        my = y1 * 0.43 + y2 * 0.57
+
+        ax.text(
+            mx,
+            my,
+            data.get("label", ""),
+            fontsize=7,
+            color="#555555",
+            fontweight="bold",
+            fontproperties=chinese_font,
+            ha="center",
+            va="center",
             bbox=dict(
                 facecolor="white",
                 edgecolor="none",
-                alpha=0.45,
-                pad=1.2
-            )
+                alpha=0.65,
+                pad=0.4
+            ),
+            zorder=9
         )
 
-    plt.title(
+    # ===== 標題，不用 plt.title，避免中文字型失效 =====
+    ax.text(
+        0.5,
+        1.03,
         f"{center} 關係圖",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
         fontsize=20,
         fontweight="bold",
         fontproperties=chinese_font
     )
-    plt.axis("off")
+
+    ax.axis("off")
     plt.tight_layout()
 
     filename = f"node_graph_{uuid.uuid4().hex}.png"
