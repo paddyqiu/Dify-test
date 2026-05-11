@@ -2,6 +2,7 @@ import os
 import uuid
 import math
 import urllib.parse
+from io import BytesIO
 
 import matplotlib
 matplotlib.use("Agg")
@@ -473,6 +474,20 @@ def build_node_graph_image_url_by_id(node_id):
 
 def generate_node_graph_image_bytes(target, limit=50):
     filename = generate_node_graph_image(target, limit=limit)
+
+    if not filename:
+        return None
+
+    filepath = os.path.join(STATIC_DIR, filename)
+
+    with open(filepath, "rb") as f:
+        image_io = BytesIO(f.read())
+
+    image_io.seek(0)
+    return image_io
+
+def generate_node_graph_image_bytes_by_id(node_id, limit=50):
+    filename = generate_node_graph_image_by_id(node_id, limit=limit)
 
     if not filename:
         return None
