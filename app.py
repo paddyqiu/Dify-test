@@ -73,14 +73,50 @@ def graph_query():
                 "message": str(e)
             }]
         }), 200
+        
+def is_simple_node_query(text):
+    if not text:
+        return False
 
+    text = text.strip()
+
+    # 太長通常不是單節點
+    if len(text) > 40:
+        return False
+
+    # 有明顯問句或查詢詞，就不要當成單純節點
+    query_words = [
+        "有哪些",
+        "是什麼",
+        "介紹",
+        "說明",
+        "分析",
+        "關係",
+        "圖譜",
+        "關係圖",
+        "知識圖譜",
+        "製程",
+        "材料",
+        "認證",
+        "部門",
+        "lesson",
+        "教訓",
+        "原始問題",
+        "原因"
+    ]
+
+    if any(word in text for word in query_words):
+        return False
+
+    # 常見節點格式，例如 BHC212、GB31241:2014、MC1254S-PT02
+    return True
 
 # ===== 背景執行 Dify，完成後 push 給 LINE =====
 def run_dify_background(to_id, user_text, user_id="line-user"):
     try:
         print("背景任務開始:", user_text)
 
-        # ===== 圖譜圖片模式 =====
+        # ===== 1. 明確要求圖譜：只回圖片 =====
         if is_graph_request(user_text):
             target = extract_graph_target(user_text)
 
@@ -101,19 +137,31 @@ def run_dify_background(to_id, user_text, user_id="line-user"):
             )
             return
 
-        # ===== 一般問題才進 Dify =====
+        # ===== 2. 一般查詢：先取得 Dify 文字回答 =====
         answer = call_dify(user_text, user_id=user_id)
 
         if not answer:
             answer = "查詢完成，但沒有取得有效結果。"
 
+        # ===== 3. 如果是單節點查詢，同時產生圖片 =====
+        if is_simple_node_query(user_text):
+            image_url = build_node_graph_image_url(user_text)
+
+            if image_url:
+                push_line_text_and_image(
+                    to_id,
+                    answer,
+                    image_url=image_url
+                )
+                return
+
+        # ===== 4. 其他問題只回文字 =====
         push_line_text(to_id, answer)
 
     except Exception as e:
         print("背景任務錯誤:", str(e))
         push_line_text(to_id, "系統查詢時發生錯誤，請稍後再試。")
-
-
+        
 # ===== 靜態檔案 =====
 @app.route("/static/<path:filename>")
 def static_files(filename):
