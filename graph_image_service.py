@@ -154,7 +154,7 @@ def generate_node_graph_image(target, limit=50):
             radius * math.sin(angle)
         )
 
-    fig, ax = plt.subplots(figsize=(15, 10))
+    fig, ax = plt.subplots(figsize=(18, 12))
     ax.set_facecolor("#f7f7f7")
 
     label_color_map = {
@@ -174,7 +174,7 @@ def generate_node_graph_image(target, limit=50):
     for node in G.nodes:
         node_label = G.nodes[node].get("label", "Unknown")
         node_colors.append(label_color_map.get(node_label, "#CCCCCC"))
-        node_sizes.append(5200 if node == center else 3600)
+        node_sizes.append(8200 if node == center else 5600)
 
     nx.draw_networkx_nodes(
         G,
@@ -210,7 +210,7 @@ def generate_node_graph_image(target, limit=50):
             x,
             y,
             node_labels[node],
-            fontsize=12 if is_center else 9,
+            fontsize=16 if is_center else 12,
             color="black",
             fontweight="bold",
             fontproperties=chinese_font,
@@ -236,7 +236,7 @@ def generate_node_graph_image(target, limit=50):
             mx,
             my,
             edge_label,
-            fontsize=7,
+            fontsize=10,
             color="#555555",
             fontweight="bold",
             fontproperties=chinese_font,
@@ -258,7 +258,7 @@ def generate_node_graph_image(target, limit=50):
         transform=ax.transAxes,
         ha="center",
         va="bottom",
-        fontsize=20,
+        fontsize=26,
         fontweight="bold",
         fontproperties=chinese_font
     )
@@ -269,7 +269,7 @@ def generate_node_graph_image(target, limit=50):
     filename = f"node_graph_{uuid.uuid4().hex}.png"
     filepath = os.path.join(STATIC_DIR, filename)
 
-    plt.savefig(filepath, dpi=180, bbox_inches="tight")
+    plt.savefig(filepath, dpi=220, bbox_inches="tight")
     plt.close(fig)
 
     return filename
