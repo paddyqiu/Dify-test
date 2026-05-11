@@ -174,26 +174,31 @@ def run_dify_background(to_id, user_text, user_id="line-user", selection_key=Non
             )
             return
 
-        # ===== 2. 一般查詢：先取得 Dify 文字回答 =====
+       # ===== 2. 一般查詢：先取得 Dify 文字回答 =====
         answer = call_dify(user_text, user_id=user_id)
-
+        
         if not answer:
             answer = "查詢完成，但沒有取得有效結果。"
-
-            candidates = extract_candidates_from_answer(answer)
-
-            if len(candidates) >= 2 and selection_key:
-                PENDING_SELECTIONS[selection_key] = {
-                    "candidates": candidates,
-                    "original_query": user_text,
-                    "user_id": user_id
-                }
-            
-                push_line_text(
-                    to_id,
-                    answer + "\n\n請直接輸入編號，例如：1 或 2。若輸入錯誤，系統會取消本次選擇。"
-                )
-                return
+        
+        # ===== 抓候選節點 =====
+        candidates = extract_candidates_from_answer(answer)
+        
+        print("DEBUG extracted candidates =", candidates)
+        
+        if len(candidates) >= 2 and selection_key:
+            PENDING_SELECTIONS[selection_key] = {
+                "candidates": candidates,
+                "original_query": user_text,
+                "user_id": user_id
+            }
+        
+            print("DEBUG PENDING_SELECTIONS =", PENDING_SELECTIONS)
+        
+            push_line_text(
+                to_id,
+                answer + "\n\n請直接輸入編號，例如：1 或 2。若輸入錯誤，系統會取消本次選擇。"
+            )
+            return
 
         # ===== 3. 如果是單節點查詢，同時產生圖片 =====
         if is_simple_node_query(user_text):
