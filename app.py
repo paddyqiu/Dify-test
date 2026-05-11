@@ -6,6 +6,7 @@ from graph_service import query_graph_by_router, test_neo4j
 from line_service import (
     reply_line_text,
     push_line_text,
+    push_line_text_and_image,
     call_dify,
     should_reply,
     remove_mention,
@@ -14,8 +15,10 @@ from line_service import (
 from graph_web_service import (
     is_graph_request,
     build_graph_url,
-    render_graph_page
+    render_graph_page, 
+    extract_graph_target
 )
+from graph_image_service import build_node_graph_image_url
 
 app = Flask(__name__)
 
@@ -77,16 +80,25 @@ def run_dify_background(to_id, user_text, user_id="line-user"):
     try:
         print("背景任務開始:", user_text)
 
-        # ===== 如果是圖譜請求，直接回傳圖譜連結，不進 Dify =====
+        # ===== 圖譜圖片模式 =====
         if is_graph_request(user_text):
-            graph_url, label = build_graph_url(user_text)
+            target = extract_graph_target(user_text)
 
-            reply_text = (
-                f"已生成 {label}：\n"
-                f"{graph_url}"
+            if not target:
+                push_line_text(to_id, "請指定要產生圖譜的節點，例如：BHC212 圖譜")
+                return
+
+            image_url = build_node_graph_image_url(target)
+
+            if not image_url:
+                push_line_text(to_id, f"找不到 {target} 的圖譜資料。")
+                return
+
+            push_line_text_and_image(
+                to_id,
+                f"已生成 {target} 的關係圖：",
+                image_url=image_url
             )
-
-            push_line_text(to_id, reply_text)
             return
 
         # ===== 一般問題才進 Dify =====
@@ -105,7 +117,10 @@ def run_dify_background(to_id, user_text, user_id="line-user"):
 # ===== 靜態檔案 =====
 @app.route("/static/<path:filename>")
 def static_files(filename):
-    return send_from_directory("/content/test/static", filename)
+    return send_from_directory(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "static"),
+        filename
+    )
 
 @app.route("/graph", methods=["GET"])
 def graph_page():
