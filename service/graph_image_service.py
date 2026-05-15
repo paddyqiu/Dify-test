@@ -15,7 +15,7 @@ from service.graph_service import run_cypher
 from config import PUBLIC_BASE_URL
 
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 FONT_PATH = os.path.join(
     BASE_DIR,
