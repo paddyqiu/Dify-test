@@ -10,6 +10,7 @@ from datetime import date, datetime
 
 # ===== path helper =====
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data")
 
 def load_json(filename):
     path = os.path.join(BASE_DIR, filename)
