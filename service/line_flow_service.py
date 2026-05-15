@@ -103,6 +103,23 @@ def extract_relationship_from_answer(answer):
     # 備援：如果 Dify 只輸出中文關係，就不要產生關係圖
     # 避免圖片中間顯示中文或方框
     return None
+
+def extract_relationship_from_graph_result(answer):
+    if not answer:
+        return None
+
+    pattern = r"([A-Za-z0-9_\-]+)\s*--\[([A-Z_]+)\]-->\s*([A-Za-z0-9_\-]+)"
+    match = re.search(pattern, answer)
+
+    if not match:
+        return None
+
+    return {
+        "source": match.group(1).strip(),
+        "relation": match.group(2).strip(),
+        "target": match.group(3).strip()
+    }
+
 def format_duplicate_candidates_message(user_text, candidates):
     lines = []
 
@@ -222,41 +239,34 @@ def run_dify_background(to_id, user_text, user_id="line-user", selection_key=Non
             return
 
         # 2. 一般查詢：呼叫 Dify
-        answer = call_dify(user_text, user_id=user_id)
+        dify_result = call_dify(user_text, user_id=user_id)
+
+        if isinstance(dify_result, dict):
+            answer = dify_result.get("answer", "")
+        else:
+            answer = dify_result
 
         if not answer:
             answer = "查詢完成，但沒有取得有效結果。"
         
         # 2.5 如果是兩節點關係查詢，自動產生關係圖
-        relationship_info = extract_relationship_from_answer(answer)
         
+        relationship_info = extract_relationship_from_graph_result(answer)
+
         if relationship_info:
-            source = relationship_info.get("source")
-            relation = relationship_info.get("relation")
-            target = relationship_info.get("target")
+            image_url = build_relationship_graph_url(
+                relationship_info["source"],
+                relationship_info["relation"],
+                relationship_info["target"]
+            )
         
-            print("[RELATION GRAPH DATA]", {
-                "source": source,
-                "relation": relation,
-                "target": target
-            })
-        
-            if source and relation and target:
-                image_url = build_relationship_graph_url(
-                    source,
-                    relation,
-                    target
+            if image_url:
+                push_line_text_and_image(
+                    to_id,
+                    answer,
+                    image_url=image_url
                 )
-        
-                print("[RELATION IMAGE URL]", image_url)
-        
-                if image_url:
-                    push_line_text_and_image(
-                        to_id,
-                        answer,
-                        image_url=image_url
-                    )
-                    return
+                return
         
         # 3. 從 Dify 回答中抓候選節點
         candidates = extract_candidates_from_answer(answer)
