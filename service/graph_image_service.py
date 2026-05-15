@@ -13,7 +13,7 @@ import networkx as nx
 
 from service.graph_service import run_cypher
 from config import PUBLIC_BASE_URL
-
+from urllib.parse import quote
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
@@ -53,6 +53,20 @@ except Exception as e:
     
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
+
+def build_relationship_graph_url(source, relation, target):
+
+    source = quote(source)
+    relation = quote(relation)
+    target = quote(target)
+
+    return (
+        f"https://你的render網址.onrender.com"
+        f"/graph/relation-image"
+        f"?source={source}"
+        f"&relation={relation}"
+        f"&target={target}"
+    )
 
 def generate_relationship_graph_image(source, relation, target):
     try:
