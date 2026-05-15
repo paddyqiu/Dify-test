@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib import font_manager
 import networkx as nx
 
-from graph_service import run_cypher
+from service.graph_service import run_cypher
 from config import PUBLIC_BASE_URL
 
 
