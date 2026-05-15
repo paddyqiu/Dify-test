@@ -14,7 +14,7 @@ from service.graph_web_service import (
 from service.graph_image_service import (
     build_node_graph_image_url,
     build_node_graph_image_url_by_id,
-    build_relationship_graph_url
+    build_graph_image_url_from_result
 )
 
 from service.line_service import (
@@ -43,7 +43,7 @@ def build_selection_key(to_id, source):
 
 
 # =========================
-# Dify Candidate Extraction
+# Candidate Extraction
 # =========================
 
 def extract_candidates_from_answer(answer):
@@ -55,7 +55,6 @@ def extract_candidates_from_answer(answer):
     for line in answer.splitlines():
         line = line.strip()
 
-        # 格式：名稱：BHC212（類型：Project）
         if "名稱：" in line:
             try:
                 name_part = line.split("名稱：", 1)[1]
@@ -66,7 +65,6 @@ def extract_candidates_from_answer(answer):
             except Exception:
                 pass
 
-        # 格式：1. BHC212 (Project)
         match = re.match(r"^\s*\d+\.\s*([A-Za-z0-9_\-:]+)\s*\(", line)
 
         if match:
@@ -75,74 +73,14 @@ def extract_candidates_from_answer(answer):
             if name:
                 candidates.append(name)
 
-    # 去除重複，保留順序
     unique_candidates = []
 
-    for c in candidates:
-        if c not in unique_candidates:
-            unique_candidates.append(c)
+    for candidate in candidates:
+        if candidate not in unique_candidates:
+            unique_candidates.append(candidate)
 
     return unique_candidates
 
-def extract_relationship_from_answer(answer, user_text=""):
-    if not answer:
-        return None
-
-    # 格式 1：
-    # ACP212 --[USES_SPECIFIC_PART]--> 14500-850
-    pattern_arrow = r"([A-Za-z0-9_\-]+)\s*--\[([A-Z0-9_]+)\]-->\s*([A-Za-z0-9_\-]+)"
-    match = re.search(pattern_arrow, answer)
-
-    if match:
-        return {
-            "source": match.group(1).strip(),
-            "relation": match.group(2).strip(),
-            "target": match.group(3).strip()
-        }
-
-    # 格式 2：
-    # ACP212 與 14500-850 的關係為：使用特定零件（USES_SPECIFIC_PART）
-    pattern_text = r"([A-Za-z0-9_\-]+)\s*(?:與|和|跟)\s*([A-Za-z0-9_\-]+).*?[（(]\s*([A-Z0-9_]+)\s*[）)]"
-    match = re.search(pattern_text, answer)
-
-    if match:
-        return {
-            "source": match.group(1).strip(),
-            "relation": match.group(3).strip(),
-            "target": match.group(2).strip()
-        }
-
-    # 格式 3：從使用者問題抓兩個節點，從回答抓 relation_type
-    entity_pattern = r"([A-Za-z0-9_\-]+)\s*(?:與|和|跟)\s*([A-Za-z0-9_\-]+)"
-    rel_pattern = r"[（(]\s*([A-Z0-9_]+)\s*[）)]"
-
-    entity_match = re.search(entity_pattern, user_text)
-    rel_match = re.search(rel_pattern, answer)
-
-    if entity_match and rel_match:
-        return {
-            "source": entity_match.group(1).strip(),
-            "relation": rel_match.group(1).strip(),
-            "target": entity_match.group(2).strip()
-        }
-
-    return None
-
-def extract_relationship_from_graph_result(answer):
-    if not answer:
-        return None
-
-    pattern = r"([A-Za-z0-9_\-]+)\s*--\[([A-Z_]+)\]-->\s*([A-Za-z0-9_\-]+)"
-    match = re.search(pattern, answer)
-
-    if not match:
-        return None
-
-    return {
-        "source": match.group(1).strip(),
-        "relation": match.group(2).strip(),
-        "target": match.group(3).strip()
-    }
 
 def format_duplicate_candidates_message(user_text, candidates):
     lines = []
@@ -150,10 +88,10 @@ def format_duplicate_candidates_message(user_text, candidates):
     lines.append(f"目前找到多個名稱為「{user_text}」的節點，請選擇要查詢的項目：")
     lines.append("")
 
-    for i, c in enumerate(candidates, start=1):
-        name = c.get("name", "")
-        label = c.get("label", "Unknown")
-        props = c.get("props", {}) or {}
+    for i, candidate in enumerate(candidates, start=1):
+        name = candidate.get("name", "")
+        label = candidate.get("label", "Unknown")
+        props = candidate.get("props", {}) or {}
 
         description_parts = []
 
@@ -194,6 +132,7 @@ def is_simple_node_query(text):
         "說明",
         "分析",
         "關係",
+        "關聯",
         "圖譜",
         "關係圖",
         "知識圖譜",
@@ -204,7 +143,11 @@ def is_simple_node_query(text):
         "lesson",
         "教訓",
         "原始問題",
-        "原因"
+        "原因",
+        "跟",
+        "與",
+        "和",
+        "之間"
     ]
 
     if any(word in text for word in query_words):
@@ -214,7 +157,51 @@ def is_simple_node_query(text):
 
 
 # =========================
-# Background Dify Flow
+# Dify Result Helpers
+# =========================
+
+def normalize_dify_result(dify_result):
+    """
+    支援兩種 dify_service 回傳格式：
+    1. 舊版：直接回傳 answer 字串
+    2. 新版：回傳 {"answer": "...", "raw": {...}}
+    """
+
+    if isinstance(dify_result, dict):
+        answer = dify_result.get("answer", "")
+        raw = dify_result.get("raw", {})
+        return answer, raw
+
+    return str(dify_result), {}
+
+
+def extract_graph_result_from_dify_raw(raw):
+    """
+    從 Dify raw response 裡嘗試取 graph_result。
+    如果目前 Dify 沒有把 graph_result 回傳到 raw，也不會報錯。
+    """
+
+    if not isinstance(raw, dict):
+        return []
+
+    graph_result = raw.get("graph_result")
+
+    if isinstance(graph_result, list):
+        return graph_result
+
+    data = raw.get("data")
+
+    if isinstance(data, dict):
+        graph_result = data.get("graph_result")
+
+        if isinstance(graph_result, list):
+            return graph_result
+
+    return []
+
+
+# =========================
+# Background Flow
 # =========================
 
 def run_dify_background(to_id, user_text, user_id="line-user", selection_key=None):
@@ -264,35 +251,29 @@ def run_dify_background(to_id, user_text, user_id="line-user", selection_key=Non
 
         # 2. 一般查詢：呼叫 Dify
         dify_result = call_dify(user_text, user_id=user_id)
-
-        if isinstance(dify_result, dict):
-            answer = dify_result.get("answer", "")
-        else:
-            answer = dify_result
+        answer, raw = normalize_dify_result(dify_result)
 
         if not answer:
             answer = "查詢完成，但沒有取得有效結果。"
-        
-        # 2.5 如果是兩節點關係查詢，自動產生關係圖
-        
-        relationship_info = extract_relationship_from_answer(answer, user_text)
 
-        if relationship_info:
-            image_url = build_relationship_graph_url(
-                relationship_info["source"],
-                relationship_info["relation"],
-                relationship_info["target"]
+        graph_result = extract_graph_result_from_dify_raw(raw)
+
+        print("[DIFY][GRAPH_RESULT]", graph_result)
+
+        # 3. 統一由 graph_image_service 判斷是否需要附圖
+        image_url = build_graph_image_url_from_result(graph_result)
+
+        if image_url:
+            print("[GRAPH IMAGE URL]", image_url)
+
+            push_line_text_and_image(
+                to_id,
+                answer,
+                image_url=image_url
             )
-        
-            if image_url:
-                push_line_text_and_image(
-                    to_id,
-                    answer,
-                    image_url=image_url
-                )
-                return
-        
-        # 3. 從 Dify 回答中抓候選節點
+            return
+
+        # 4. 從 Dify 回答中抓候選節點
         candidates = extract_candidates_from_answer(answer)
 
         print("[CANDIDATES][EXTRACTED]", candidates)
@@ -311,7 +292,7 @@ def run_dify_background(to_id, user_text, user_id="line-user", selection_key=Non
             )
             return
 
-        # 4. 單節點查詢：如果查得到，補圖
+        # 5. 單節點查詢備援：如果沒有 graph_result，但使用者輸入看起來是單節點，就補單節點圖
         if is_simple_node_query(user_text):
             not_found_keywords = [
                 "查無相關資料",
@@ -346,7 +327,7 @@ def run_dify_background(to_id, user_text, user_id="line-user", selection_key=Non
                 )
                 return
 
-        # 5. 其他問題只回文字
+        # 6. 其他問題只回文字
         push_line_text(to_id, answer)
 
     except Exception as e:
@@ -372,7 +353,6 @@ def handle_candidate_selection(reply_token, cleaned_text, selection_key, to_id):
         mode = pending.get("mode", "name")
         user_id = pending.get("user_id", "line-user")
 
-        # 清除暫存，避免下一次誤判
         del PENDING_SELECTIONS[selection_key]
 
         if not (1 <= selection <= len(candidates)):
@@ -407,9 +387,9 @@ def handle_candidate_selection(reply_token, cleaned_text, selection_key, to_id):
             if props:
                 lines.append("節點屬性：")
 
-                for k, v in props.items():
-                    if v is not None and str(v).strip():
-                        lines.append(f"- {k}: {v}")
+                for key, value in props.items():
+                    if value is not None and str(value).strip():
+                        lines.append(f"- {key}: {value}")
 
                 lines.append("")
 
@@ -418,11 +398,11 @@ def handle_candidate_selection(reply_token, cleaned_text, selection_key, to_id):
             if relations:
                 lines.append("相關關係：")
 
-                for r in relations[:10]:
+                for relation in relations[:10]:
                     lines.append(
-                        f"- {r.get('relation')} → "
-                        f"{r.get('target_name')}"
-                        f"（{r.get('target_label')}）"
+                        f"- {relation.get('relation')} → "
+                        f"{relation.get('target_name')}"
+                        f"（{relation.get('target_label')}）"
                     )
 
             image_url = build_node_graph_image_url_by_id(selected_node_id)
@@ -446,9 +426,6 @@ def handle_candidate_selection(reply_token, cleaned_text, selection_key, to_id):
             f"已選擇：{selected_node}\n系統正在查詢，請稍候。"
         )
 
-        # 關鍵修正：
-        # 使用者選擇 1/2 後，要重新啟動查詢流程。
-        # selection_key 傳 None，避免再次進入候選選擇循環。
         thread = threading.Thread(
             target=run_dify_background,
             args=(
@@ -501,7 +478,6 @@ def handle_line_webhook(request):
             print("[LINE][SKIP] missing reply_token or to_id")
             continue
 
-        # 群組中需要被標註才回答
         ok, text = should_reply(event)
 
         if not ok:
@@ -520,7 +496,6 @@ def handle_line_webhook(request):
 
         selection_key = build_selection_key(to_id, source)
 
-        # 如果使用者正在選候選項目
         if cleaned_text.isdigit() and selection_key in PENDING_SELECTIONS:
             handle_candidate_selection(
                 reply_token,
@@ -530,7 +505,6 @@ def handle_line_webhook(request):
             )
             continue
 
-        # 一般查詢：先回覆，避免 LINE webhook timeout
         reply_line_text(reply_token, "收到，正在查詢中。")
 
         thread = threading.Thread(
