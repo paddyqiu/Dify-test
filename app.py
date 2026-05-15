@@ -9,7 +9,7 @@ from service.graph_service import (
     find_exact_duplicate_nodes,
     query_node_by_element_id
 )
-from services.line_service import (
+from service.line_service import (
     reply_line_text,
     reply_line_text_and_image,
     push_line_text,
@@ -19,13 +19,13 @@ from services.line_service import (
     remove_mention,
     clean_line_text
 )
-from services.graph_web_service import (
+from service.graph_web_service import (
     is_graph_request,
     build_graph_url,
     render_graph_page, 
     extract_graph_target
 )
-from services.graph_image_service import (
+from service.graph_image_service import (
     generate_node_graph_image,
     generate_node_graph_image_bytes,
     generate_node_graph_image_bytes_by_id,
