@@ -10,6 +10,9 @@ from service.graph_image_service import (
 )
 from service.graph_web_service import render_graph_page
 from service.line_flow_service import handle_line_webhook
+from service.graph_image_service import (
+    generate_relationship_graph_image
+)
 
 
 app = Flask(__name__)
@@ -131,6 +134,31 @@ def graph_image():
         download_name=filename
     )
 
+@app.route("/graph/relation-image", methods=["GET"])
+def relation_image():
+
+    source = request.args.get("source", "").strip()
+    relation = request.args.get("relation", "").strip()
+    target = request.args.get("target", "").strip()
+
+    if not source or not relation or not target:
+        return "missing parameters", 400
+
+    image_io = generate_relationship_graph_image(
+        source,
+        relation,
+        target
+    )
+
+    if not image_io:
+        return "image generation failed", 500
+
+    return send_file(
+        image_io,
+        mimetype="image/png",
+        as_attachment=False,
+        download_name="relation_graph.png"
+    )
 
 @app.route("/graph", methods=["GET"])
 def graph_page():
