@@ -3,13 +3,13 @@ import re
 import json
 import threading
 from flask import Flask, request, jsonify, send_from_directory, send_file
-from graph_service import (
+from service.graph_service import (
     query_graph_by_router,
     test_neo4j,
     find_exact_duplicate_nodes,
     query_node_by_element_id
 )
-from line_service import (
+from services.line_service import (
     reply_line_text,
     reply_line_text_and_image,
     push_line_text,
@@ -19,13 +19,13 @@ from line_service import (
     remove_mention,
     clean_line_text
 )
-from graph_web_service import (
+from services.graph_web_service import (
     is_graph_request,
     build_graph_url,
     render_graph_page, 
     extract_graph_target
 )
-from graph_image_service import (
+from services.graph_image_service import (
     generate_node_graph_image,
     generate_node_graph_image_bytes,
     generate_node_graph_image_bytes_by_id,
