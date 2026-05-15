@@ -33,4 +33,7 @@ def call_dify(user_text, user_id="line-user"):
 
     data = response.json()
 
-    return data.get("answer") or data.get("message") or str(data)
+    return {
+        "answer": data.get("answer") or data.get("message") or str(data),
+        "raw": data
+    }
