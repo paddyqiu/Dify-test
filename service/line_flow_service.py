@@ -404,24 +404,34 @@ def handle_line_webhook(request):
             handle_candidate_selection(
                 reply_token,
                 cleaned_text,
-                selection_key
+                selection_key,
+                to_id
             )
             continue
 
-        # 先回覆，避免 LINE timeout
-        reply_line_text(reply_token, "收到，正在查詢中。")
-
+        # 一般候選節點
+        selected_node = selected
+        original_query = pending.get("original_query", "")
+        user_id = pending.get("user_id", "line-user")
+        
+        reply_line_text(
+            reply_token,
+            f"已選擇：{selected_node}\n系統正在查詢，請稍候。"
+        )
+        
+        # 避免再次進入候選選擇流程，這裡直接查使用者選到的節點名稱
         thread = threading.Thread(
             target=run_dify_background,
             args=(
-                to_id,
-                cleaned_text,
-                source.get("userId", "line-user"),
-                selection_key
+                selection_key.split(":")[0],   # to_id
+                selected_node,                 # user_text
+                user_id,
+                None                           # 不再帶 selection_key，避免重複觸發候選
             ),
             daemon=True
         )
-
+        
         thread.start()
+        return
 
     return "OK", 200
