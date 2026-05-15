@@ -15,10 +15,13 @@ from service.graph_service import run_cypher
 from config import PUBLIC_BASE_URL
 
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
+)
 
 FONT_PATH = os.path.join(
     BASE_DIR,
+    "fonts",
     "NotoSansCJKtc-Regular.otf"
 )
 try:
@@ -37,8 +40,8 @@ try:
 
 except Exception as e:
     print("WARNING: Chinese font load failed")
-    print("WARNING FONT_PATH:", FONT_PATH)
-    print("WARNING FONT_EXISTS:", os.path.exists(FONT_PATH))
+    print("DEBUG FONT_PATH:", FONT_PATH)
+    print("DEBUG FONT_EXISTS:", os.path.exists(FONT_PATH))
 
     if os.path.exists(FONT_PATH):
         print("WARNING FONT_SIZE:", os.path.getsize(FONT_PATH))
