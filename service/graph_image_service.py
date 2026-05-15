@@ -54,6 +54,60 @@ except Exception as e:
 STATIC_DIR = os.path.join(BASE_DIR, "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 
+def generate_relationship_graph_image(source, relation, target):
+    try:
+        G = nx.DiGraph()
+
+        G.add_node(source)
+        G.add_node(target)
+
+        G.add_edge(source, target, label=relation)
+
+        pos = {
+            source: (-1, 0),
+            target: (1, 0)
+        }
+
+        plt.figure(figsize=(6, 3))
+
+        nx.draw(
+            G,
+            pos,
+            with_labels=True,
+            node_size=4000,
+            font_family="sans-serif",
+            arrows=True
+        )
+
+        edge_labels = {
+            (source, target): relation
+        }
+
+        nx.draw_networkx_edge_labels(
+            G,
+            pos,
+            edge_labels=edge_labels,
+            font_size=10
+        )
+
+        img_io = io.BytesIO()
+
+        plt.savefig(
+            img_io,
+            format="png",
+            bbox_inches="tight"
+        )
+
+        plt.close()
+
+        img_io.seek(0)
+
+        return img_io
+
+    except Exception as e:
+        print("[ERROR][RELATION_GRAPH]", str(e))
+        return None
+
 
 def get_chinese_font():
     return CHINESE_FONT
