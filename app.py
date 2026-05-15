@@ -136,7 +136,6 @@ def graph_image():
 
 @app.route("/graph/relation-image", methods=["GET"])
 def relation_image():
-
     source = request.args.get("source", "").strip()
     relation = request.args.get("relation", "").strip()
     target = request.args.get("target", "").strip()
@@ -144,11 +143,7 @@ def relation_image():
     if not source or not relation or not target:
         return "missing parameters", 400
 
-    image_io = generate_relationship_graph_image(
-        source,
-        relation,
-        target
-    )
+    image_io = generate_relationship_graph_image(source, relation, target)
 
     if not image_io:
         return "image generation failed", 500
