@@ -88,19 +88,21 @@ def extract_relationship_from_answer(answer):
     if not answer:
         return None
 
-    pattern = r"([A-Za-z0-9_\-]+)\s*--\[(.*?)\]-->\s*([A-Za-z0-9_\-]+)"
-
+    # 優先抓原始 Neo4j relation type，例如：
+    # BHC212 --[INCLUDES]--> ACP212（包含）
+    pattern = r"([A-Za-z0-9_\-]+)\s*--\[([A-Z_]+)\]-->\s*([A-Za-z0-9_\-]+)"
     match = re.search(pattern, answer)
 
-    if not match:
-        return None
+    if match:
+        return {
+            "source": match.group(1).strip(),
+            "relation": match.group(2).strip(),
+            "target": match.group(3).strip()
+        }
 
-    return {
-        "source": match.group(1).strip(),
-        "relation": match.group(2).strip(),
-        "target": match.group(3).strip()
-    }
-
+    # 備援：如果 Dify 只輸出中文關係，就不要產生關係圖
+    # 避免圖片中間顯示中文或方框
+    return None
 def format_duplicate_candidates_message(user_text, candidates):
     lines = []
 
