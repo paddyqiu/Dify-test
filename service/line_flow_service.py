@@ -66,7 +66,7 @@ def extract_candidates_from_answer(answer):
             except Exception:
                 pass
 
-        match = re.match(r"^\s*\d+\.\s*([A-Za-z0-9_\-:]+)\s*\(", line)
+        match = re.match(r"^\s*\d+\.\s*(.+?)\s*\(", line)
 
         if match:
             name = match.group(1).strip()
