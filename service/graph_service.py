@@ -232,6 +232,15 @@ def detect_check_category(user_question):
     text = clean_text(user_question) or ""
     text = text.split(":")[0].strip()
     lower_text = text.lower()
+    # 如果句子中有明確節點名稱 + 有哪些/列出 + 類別詞
+    # 例如：MD1054D有哪些認證
+    # 這不是全域分類查詢，不應該進 check_category
+    possible_nodes = find_candidate_nodes(text, score_cutoff=80, max_results=3)
+    if possible_nodes:
+        for category, aliases in CHECK_CATEGORY_ALIASES.items():
+            for alias in aliases:
+                if alias.lower() in lower_text:
+                    return None
 
     # 明確 check 指令
     if lower_text.startswith("check "):
@@ -832,6 +841,29 @@ def query_project_related(project_name, relation_name, target_label, return_key)
            collect(DISTINCT t.name) AS {return_key}
     """
     return run_cypher(q, {"project": project_name})
+
+def query_entity_related_by_relation(source_label, source_name, relation_name, target_label, return_key, limit=20):
+    name_condition = build_name_match_condition(source_label, "s", "source_name")
+
+    q = f"""
+    MATCH (s:{source_label})
+    WHERE {name_condition}
+    OPTIONAL MATCH (s)-[:{relation_name}]->(t:{target_label})
+    RETURN
+        coalesce(s.name, s.title) AS source,
+        labels(s)[0] AS source_label,
+        collect(DISTINCT properties(t)) AS {return_key},
+        count(t) AS count
+    LIMIT $limit
+    """
+
+    rows = run_cypher(q, {
+        "source_name": source_name,
+        "limit": limit
+    })
+
+    return rows
+    
 def run_generic_lookup(config, entity_name, limit, requested_fields):
     q = build_generic_lookup_query(config)
     result = run_cypher(q, {"name": entity_name, "limit": limit})
@@ -964,6 +996,29 @@ def query_graph_by_router(payload):
 
     project = resolved.get("project", {}).get("matched")
     process_name = resolved.get("process", {}).get("matched")
+
+    # ===== node_lookup + requested_fields 轉成單節點關聯查詢 =====
+    if intent == "node_lookup" and requested_fields and relation_hint:
+        entity_candidates = get_resolved_entity_candidates(resolved, exclude_fields={"lesson_keyword"})
+    
+        if entity_candidates:
+            best = entity_candidates[0]
+            relation_cfg = PROJECT_RELATION_QUERY_MAP.get(relation_hint)
+    
+            if relation_cfg:
+                result = query_entity_related_by_relation(
+                    source_label=best["label"],
+                    source_name=best["matched"],
+                    relation_name=relation_hint,
+                    target_label=relation_cfg["target_label"],
+                    return_key=relation_cfg["return_key"],
+                    limit=limit
+                )
+    
+                return {
+                    "graph_result": result,
+                    "debug": debug_info
+                }
 
     if intent == "node_lookup":
         info, query_mode, error_result = resolve_node_lookup_target(
