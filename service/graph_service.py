@@ -998,14 +998,43 @@ def query_graph_by_router(payload):
     process_name = resolved.get("process", {}).get("matched")
 
     # ===== node_lookup + requested_fields 轉成單節點關聯查詢 =====
-    if intent == "node_lookup" and requested_fields and relation_hint:
-        entity_candidates = get_resolved_entity_candidates(resolved, exclude_fields={"lesson_keyword"})
+    # ===== 單節點 + 指定關係查詢 =====
+    # 支援：
+    # 1. node_lookup + requested_fields
+    # 2. single_node_relation_list
+    if intent in ["node_lookup", "single_node_relation_list"] and requested_fields and relation_hint:
     
-        if entity_candidates:
-            best = entity_candidates[0]
-            relation_cfg = PROJECT_RELATION_QUERY_MAP.get(relation_hint)
+        relation_cfg = PROJECT_RELATION_QUERY_MAP.get(relation_hint)
     
-            if relation_cfg:
+        if relation_cfg:
+            best = None
+    
+            # 情況 A：Dify 有正確給 source_entity，例如 MD1054D
+            if source_entity:
+                candidates = find_candidate_nodes(
+                    source_entity,
+                    score_cutoff=55,
+                    max_results=1
+                )
+    
+                if candidates:
+                    best = {
+                        "label": candidates[0]["label"],
+                        "matched": candidates[0]["name"],
+                        "score": candidates[0]["score"]
+                    }
+    
+            # 情況 B：舊版 Dify 把 MD1054D 放到 material/project/component
+            if not best:
+                entity_candidates = get_resolved_entity_candidates(
+                    resolved,
+                    exclude_fields={"lesson_keyword"}
+                )
+    
+                if entity_candidates:
+                    best = entity_candidates[0]
+    
+            if best:
                 result = query_entity_related_by_relation(
                     source_label=best["label"],
                     source_name=best["matched"],
@@ -1019,7 +1048,6 @@ def query_graph_by_router(payload):
                     "graph_result": result,
                     "debug": debug_info
                 }
-
     if intent == "node_lookup":
         info, query_mode, error_result = resolve_node_lookup_target(
             user_question=user_question,
