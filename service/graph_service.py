@@ -95,41 +95,6 @@ def get_driver():
 # ==============================================================================
 # 5. Utility Functions
 # ==============================================================================
-import re
-from datetime import date, datetime
-
-# ==============================================================================
-# 資料遮罩配置與核心函數
-# ==============================================================================
-# 在這裡定義妳想要打馬賽克的關鍵字（只有圈內人知道對應關係）
-MASK_KEYWORDS = ["MD1054D", "機密專案A", "敏感廠商X"] 
-
-def apply_smart_mask(text):
-    """
-    智慧遮罩核心：把敏感字眼、特定格式的文字打上馬賽克
-    """
-    if not isinstance(text, str):
-        return text
-    
-    # 規則 A：如果字串裡面包含自定義的機密關鍵字，將其中間字元轉為馬賽克
-    for kw in MASK_KEYWORDS:
-        if kw in text:
-            if len(kw) > 4:
-                # 範例：MD1054D -> MD***4D (保留頭尾，中間打碼)
-                masked_kw = kw[:2] + "***" + kw[-2:]
-            else:
-                masked_kw = "***"
-            text = text.replace(kw, masked_kw)
-            
-    # 規則 B：利用正規表達式（Regex）自動遮罩符合特定料號格式的文字
-    # 範例：AB1234C -> AB***C
-    text = re.sub(r'([A-Z]{2})\d{4}([A-Z])', r'\1***\2', text)
-    
-    return text
-
-# ==============================================================================
-# 查詢與工具函數實作
-# ==============================================================================
 def find_exact_duplicate_nodes(name, limit=10):
     q = """
     MATCH (n)
@@ -146,7 +111,6 @@ def find_exact_duplicate_nodes(name, limit=10):
         "name": name.strip(),
         "limit": limit
     })
-
 def query_node_by_element_id(node_id, limit=50):
     q = """
     MATCH (n)
@@ -190,13 +154,11 @@ def query_node_by_element_id(node_id, limit=50):
             if r.get("relation") and r.get("target_name")
         ]
     }
-
 def clean_text(s):
     if s is None:
         return None
     s = str(s).strip()
     return s if s else None
-
 def dedupe_keep_order(items):
     seen = set()
     result = []
@@ -221,22 +183,16 @@ def filter_properties_by_schema(label, properties):
     }
 
 def make_json_safe(value):
-    if value is None or isinstance(value, (int, float, bool)):
+    if value is None or isinstance(value, (str, int, float, bool)):
         return value
-    if isinstance(value, str):
-        # 關鍵點：在這裡對所有即將輸出的字串執行智慧馬賽克處理
-        return apply_smart_mask(value)
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if isinstance(value, (list, tuple)):
         return [make_json_safe(v) for v in value]
     if isinstance(value, dict):
         return {k: make_json_safe(v) for k, v in value.items()}
-    return apply_smart_mask(str(value))
-
+    return str(value)
 def sanitize_result(rows):
-    if not rows:
-        return []
     return [{k: make_json_safe(v) for k, v in row.items()} for row in rows]
 
 
