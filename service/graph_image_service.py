@@ -42,29 +42,23 @@ except Exception as e:
 
 
 # ==========================================
-# Python 智慧馬賽克核心：設定要遮罩的關鍵字
+# 全新交替打碼規則：不論字串為何，皆一字顯示一字遮罩
 # ==========================================
-MASK_KEYWORDS = ["MD1054D", "機密專案A", "敏感廠商X"]
-
 def apply_smart_mask(text):
     if not text:
         return ""
     processed = str(text)
 
-    # 規則 1：自定義關鍵字遮罩（保留頭尾兩碼，中間變 ***）
-    for kw in MASK_KEYWORDS:
-        if kw in processed:
-            if len(kw) > 4:
-                masked_kw = kw[:2] + "***" + kw[-2:]
-            else:
-                masked_kw = "***"
-            processed = processed.replace(kw, masked_kw)
+    masked_chars = []
+    for i, char in enumerate(processed):
+        if char.isspace():
+            masked_chars.append(char)  # 保留空格以維持排版基本可讀性
+        elif i % 2 == 0:
+            masked_chars.append(char)  # 索引 0, 2, 4... 顯示原字
+        else:
+            masked_chars.append("*")   # 索引 1, 3, 5... 強制變 *
 
-    # 規則 2：正規表達式自動攔截料號格式（例如 AB1234C 轉成 AB***C）
-    regex = r'([A-Z]{2})\d{4}([A-Z])'
-    processed = re.sub(regex, r'\1***\2', processed)
-
-    return processed
+    return "".join(masked_chars)
 
 
 # =========================
@@ -269,7 +263,7 @@ def generate_node_graph_from_rows(rows):
     if not rows:
         return None
 
-    # 1. 攔截中心點節點名稱並打馬賽克
+    # 1. 攔截中心點節點名稱並施加梅花座馬賽克
     raw_center_name = rows[0].get("center_name")
     if not raw_center_name:
         return None
@@ -297,7 +291,7 @@ def generate_node_graph_from_rows(rows):
         if not raw_neighbor_name or not relation_type:
             continue
 
-        # 2. 攔截周圍鄰近節點名稱並打馬賽克
+        # 2. 攔截周圍鄰近節點名稱並施加梅花座馬賽克
         neighbor_name = apply_smart_mask(raw_neighbor_name)
 
         if neighbor_name not in graph:
@@ -396,7 +390,7 @@ def generate_node_graph_from_rows(rows):
 
 def generate_relationship_graph_image(source, relation, target):
     try:
-        # 3. 兩節點關係圖也同步施加馬賽克濾鏡
+        # 3. 兩節點雙向關係圖也同步施加梅花座馬賽克
         masked_source = apply_smart_mask(source)
         masked_target = apply_smart_mask(target)
 
