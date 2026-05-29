@@ -458,6 +458,7 @@ def build_debug_info(intent, relation_hint, relation_score, resolved):
         "relation_score": relation_score,
         "resolved_entities": resolved
     }
+
 def build_generic_lookup_query(config):
     label = config["label"]
     return_key = config["return_key"]
@@ -498,6 +499,7 @@ def build_generic_lookup_query(config):
     LIMIT $limit
     """
     return q
+
 def get_resolved_entity_candidates(resolved, exclude_fields=None):
     exclude_fields = set(exclude_fields or [])
     candidates = []
@@ -523,10 +525,10 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
     """
     統一處理 node_lookup 的目標節點與查詢模式。
 
-    規則：
+    優化後規則：
     1. 完全相同名稱優先，直接查該節點。
     2. 若有 relation_hint，代表「某節點 + 某類關係」查詢。
-    3. 若只有模糊候選且多筆，才要求使用者選擇。
+    3. 關鍵解鎖：若無完全相同名稱，但有模糊比對候選人，直接自動抓「分數最高的第一個」放行繪圖，不彈出 ambiguous 阻擋文字！
     """
     raw_question = clean_text(user_question) or ""
     raw_question = raw_question.strip()
@@ -580,13 +582,14 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": raw_question
             }, "single_node_detail", None
 
-        return None, "ambiguous_node", {
-            "query_type": "ambiguous_node",
-            "found": False,
-            "message": "找到多個完全相同名稱節點，請選擇",
-            "input": raw_question,
-            "candidates": exact_matches[:5]
-        }
+        # 如果有多個完全同名（跨 Label），直接抓第一個放行出圖
+        best = exact_matches[0]
+        return {
+            "label": best["label"],
+            "matched": best["name"],
+            "score": 100,
+            "input": raw_question
+        }, "single_node_detail", None
 
     # ===== 2. 有 relation_hint：節點 + 關係查詢 =====
     if relation_hint:
@@ -604,39 +607,18 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": best["input"]
             }, "node_relation_detail", None
 
-    # ===== 3. 沒有 relation_hint：若只有一個高分候選，直接查 =====
+    # ===== 3. 【解鎖關鍵】沒有精準匹配，但有模糊比對候選人時 ➔ 自動放行高分者畫圖 =====
     if raw_candidates:
+        # 直接自動抓取排序後的第一個 candidate（分數最高、最相似的對象）
         best = raw_candidates[0]
-
-        high_score_candidates = [
-            c for c in raw_candidates
-            if c.get("score", 0) >= 95
-        ]
-
-        if len(high_score_candidates) == 1:
-            best = high_score_candidates[0]
-            return {
-                "label": best["label"],
-                "matched": best["name"],
-                "score": best["score"],
-                "input": raw_question
-            }, "single_node_detail", None
-
-        if len(raw_candidates) == 1:
-            return {
-                "label": best["label"],
-                "matched": best["name"],
-                "score": best["score"],
-                "input": raw_question
-            }, "single_node_detail", None
-
-        return None, "ambiguous_node", {
-            "query_type": "ambiguous_node",
-            "found": False,
-            "message": "找到多個可能節點，請選擇要查詢的項目",
-            "input": raw_question,
-            "candidates": raw_candidates[:5]
-        }
+        
+        # 🟢 這裡移除了原本回傳 "ambiguous_node" 錯誤訊息的防線，直接帶入最高分節點進行單點星狀圖繪製
+        return {
+            "label": best["label"],
+            "matched": best["name"],
+            "score": best["score"],
+            "input": raw_question
+        }, "single_node_detail", None
 
     # ===== 4. 從 Dify 已解析欄位選最高分 =====
     entity_candidates = get_resolved_entity_candidates(resolved)
@@ -657,10 +639,13 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
         "found": False,
         "message": "無法解析單一節點查詢對象"
     }
+
+
 def detect_node_query_mode(relation_hint):
     if relation_hint:
         return "node_relation_detail"
     return "single_node_detail"
+
 
 def build_single_node_result(raw_result, query_mode="single_node_detail"):    
     if not raw_result:
@@ -737,6 +722,8 @@ def build_single_node_result(raw_result, query_mode="single_node_detail"):
             "categories": categories
         }
     }
+
+
 def filter_requested_fields(result, top_key, requested_fields):
     if not requested_fields:
         return result
@@ -746,6 +733,8 @@ def filter_requested_fields(result, top_key, requested_fields):
         if isinstance(info, dict):
             row[top_key] = {k: v for k, v in info.items() if k in requested_fields}
     return result
+
+
 def query_all_nodes_by_label(label, limit=100):
     q = f"""
     MATCH (n:{label})
@@ -755,6 +744,8 @@ def query_all_nodes_by_label(label, limit=100):
     LIMIT $limit
     """
     return run_cypher(q, {"limit": limit})
+
+
 def query_node_with_relations(label, name):
     name_condition = build_name_match_condition(label, "n", "name")
     name_expr = build_coalesce_name_expr(label, "n")
@@ -790,8 +781,8 @@ def query_node_with_relations(label, name):
     LIMIT 1
     """
 
-    return run_cypher(q, {"name": name}
-    )
+    return run_cypher(q, {"name": name})
+
     
 def query_project_full(project_name):
     q = """
@@ -816,6 +807,8 @@ def query_project_full(project_name):
         if "materials" in row:
             row["materials"] = dedupe_keep_order(row["materials"])
     return rows
+
+
 def query_project_lessons(project_name):
     q = """
     MATCH (p:Project {name:$project})-[:HAS_LESSON]->(l)
@@ -834,6 +827,8 @@ def query_project_lessons(project_name):
            }) AS lessons
     """
     return run_cypher(q, {"project": project_name})
+
+
 def query_project_related(project_name, relation_name, target_label, return_key):
     q = f"""
     MATCH (p:Project {{name:$project}})-[:{relation_name}]->(t:{target_label})
@@ -841,6 +836,7 @@ def query_project_related(project_name, relation_name, target_label, return_key)
            collect(DISTINCT t.name) AS {return_key}
     """
     return run_cypher(q, {"project": project_name})
+
 
 def query_entity_related_by_relation(source_label, source_name, relation_name, target_label, return_key, limit=20):
     name_condition = build_name_match_condition(source_label, "s", "source_name")
@@ -863,6 +859,7 @@ def query_entity_related_by_relation(source_label, source_name, relation_name, t
     })
 
     return rows
+
     
 def run_generic_lookup(config, entity_name, limit, requested_fields):
     q = build_generic_lookup_query(config)
