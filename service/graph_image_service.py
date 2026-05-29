@@ -44,21 +44,35 @@ except Exception as e:
 # ==========================================
 # 核心交替打碼規則：不論字串為何，皆一字顯示一字遮罩
 # ==========================================
-def apply_smart_mask(text):
-    if not text:
+def apply_smart_mask(s):
+    if s is None:
         return ""
-    processed = str(text)
-
-    masked_chars = []
-    for i, char in enumerate(processed):
-        if char.isspace():
-            masked_chars.append(char)  # 保留空格，維持排版
-        elif i % 2 == 0:
-            masked_chars.append(char)  # 索引 0, 2, 4... 顯示原字
+    s = str(s).strip()
+    if not s:
+        return ""
+    
+    length = len(s)
+    
+    # 規則 1：兩個字（含）以下的短字串 ➔ 遮蔽第一個字
+    if length <= 2:
+        if length == 1:
+            return "*"
         else:
-            masked_chars.append("*")   # 索引 1, 3, 5... 強制變 *
-
-    return "".join(masked_chars)
+            return "*" + s[1]
+            
+    # 規則 2：大於兩個字的字串 ➔ 每兩個字，才打碼一個字
+    # 邏輯：保留 2 個、遮 1 個、保留 2 個、遮 1 個... 依此循環
+    result = []
+    for idx, char in enumerate(s):
+        # 使用模數運算 (idx % 3)，每 3 個字為一組週期
+        # 索引 0, 1 ➔ 保留；索引 2 ➔ 遮蔽
+        # 索引 3, 4 ➔ 保留；索引 5 ➔ 遮蔽
+        if idx % 3 == 2:
+            result.append("*")
+        else:
+            result.append(char)
+            
+    return "".join(result)
 
 
 # =========================
