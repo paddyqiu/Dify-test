@@ -42,7 +42,7 @@ except Exception as e:
 
 
 # ==========================================
-# 全新交替打碼規則：不論字串為何，皆一字顯示一字遮罩
+# 核心交替打碼規則：不論字串為何，皆一字顯示一字遮罩
 # ==========================================
 def apply_smart_mask(text):
     if not text:
@@ -52,7 +52,7 @@ def apply_smart_mask(text):
     masked_chars = []
     for i, char in enumerate(processed):
         if char.isspace():
-            masked_chars.append(char)  # 保留空格以維持排版基本可讀性
+            masked_chars.append(char)  # 保留空格，維持排版
         elif i % 2 == 0:
             masked_chars.append(char)  # 索引 0, 2, 4... 顯示原字
         else:
@@ -263,11 +263,10 @@ def generate_node_graph_from_rows(rows):
     if not rows:
         return None
 
-    # 1. 攔截中心點節點名稱並施加梅花座馬賽克
-    raw_center_name = rows[0].get("center_name")
-    if not raw_center_name:
+    # 【重要修復】節點 ID 與核心結構維持原始字串，防止 NetworkX 球球重疊崩潰
+    center_name = rows[0].get("center_name")
+    if not center_name:
         return None
-    center_name = apply_smart_mask(raw_center_name)
 
     graph = nx.DiGraph()
     edge_labels = {}
@@ -278,28 +277,29 @@ def generate_node_graph_from_rows(rows):
 
     graph.add_node(center_name)
     node_colors[center_name] = get_node_color(center_labels, is_center=True)
-    node_labels[center_name] = wrap_label(center_name, max_len=13)
+    
+    # 僅在要繪製在圖面上的標籤調用 apply_smart_mask
+    node_labels[center_name] = wrap_label(apply_smart_mask(center_name), max_len=13)
 
     neighbors = []
 
     for row in rows:
-        raw_neighbor_name = row.get("neighbor_name")
+        neighbor_name = row.get("neighbor_name")
         neighbor_labels = row.get("neighbor_labels", [])
         relation_type = row.get("relation_type")
         outgoing = row.get("outgoing")
 
-        if not raw_neighbor_name or not relation_type:
+        if not neighbor_name or not relation_type:
             continue
-
-        # 2. 攔截周圍鄰近節點名稱並施加梅花座馬賽克
-        neighbor_name = apply_smart_mask(raw_neighbor_name)
 
         if neighbor_name not in graph:
             graph.add_node(neighbor_name)
             neighbors.append(neighbor_name)
 
         node_colors[neighbor_name] = get_node_color(neighbor_labels)
-        node_labels[neighbor_name] = wrap_label(neighbor_name, max_len=16)
+        
+        # 同樣地，周圍鄰近球球也是在產生顯示標籤時才予以打碼
+        node_labels[neighbor_name] = wrap_label(apply_smart_mask(neighbor_name), max_len=16)
 
         if outgoing:
             graph.add_edge(center_name, neighbor_name)
@@ -358,8 +358,9 @@ def generate_node_graph_from_rows(rows):
         label_pos=0.52
     )
 
+    # 圖片上方的標題也一併予以馬賽克處理
     plt.title(
-        f"{center_name} graph",
+        f"{apply_smart_mask(center_name)} graph",
         fontsize=16,
         fontweight="bold",
         fontfamily=FONT_NAME
@@ -390,7 +391,7 @@ def generate_node_graph_from_rows(rows):
 
 def generate_relationship_graph_image(source, relation, target):
     try:
-        # 3. 兩節點雙向關係圖也同步施加梅花座馬賽克
+        # 雙節點關係預覽圖：將被打碼的字串純粹用於展示
         masked_source = apply_smart_mask(source)
         masked_target = apply_smart_mask(target)
 
