@@ -45,35 +45,36 @@ except Exception as e:
 # 核心交替打碼規則：不論字串為何，皆一字顯示一字遮罩
 # ==========================================
 def apply_smart_mask(s):
-    if s is None:
-        return ""
-    s = str(s).strip()
-    if not s:
-        return ""
-    
-    length = len(s)
-    
-    # 規則 1：兩個字（含）以下的短字串 ➔ 遮蔽第一個字
-    if length <= 2:
-        if length == 1:
-            return "*"
-        else:
-            return "*" + s[1]
-            
-    # 規則 2：大於兩個字的字串 ➔ 每兩個字，才打碼一個字
-    # 邏輯：保留 2 個、遮 1 個、保留 2 個、遮 1 個... 依此循環
-    result = []
-    for idx, char in enumerate(s):
-        # 使用模數運算 (idx % 3)，每 3 個字為一組週期
-        # 索引 0, 1 ➔ 保留；索引 2 ➔ 遮蔽
-        # 索引 3, 4 ➔ 保留；索引 5 ➔ 遮蔽
-        if idx % 3 == 2:
-            result.append("*")
-        else:
-            result.append(char)
-            
-    return "".join(result)
-
+    try:
+        if s is None:
+            return ""
+        s = str(s).strip()
+        if not s:
+            return ""
+        
+        length = len(s)
+        
+        # 規則 1：兩個字（含）以下的短字串 ➔ 遮蔽第一個字
+        if length <= 2:
+            if length == 1:
+                return "*"
+            else:
+                return "*" + s[1]
+                
+        # 規則 2：大於兩個字的字串 ➔ 每兩個字才打碼一個字（留、留、遮）
+        result = []
+        for idx, char in enumerate(s):
+            if idx % 3 == 2:
+                result.append("*")
+            else:
+                result.append(char)
+                
+        return "".join(result)
+        
+    except Exception as e:
+        # 【終極防護罩】如果中間發生任何未知錯誤，直接返回原始字串，確保圖「絕對畫得出來」！
+        print(f"打碼出錯，已自動跳過保護：{str(e)}")
+        return str(s)
 
 # =========================
 # URL Builders
