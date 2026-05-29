@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import uuid
 import math
 from urllib.parse import quote
@@ -38,6 +39,32 @@ try:
         print("[GRAPH IMAGE][FONT_MISSING]", FONT_PATH)
 except Exception as e:
     print("[GRAPH IMAGE][FONT_LOAD_ERROR]", str(e))
+
+
+# ==========================================
+# Python 智慧馬賽克核心：設定要遮罩的關鍵字
+# ==========================================
+MASK_KEYWORDS = ["MD1054D", "機密專案A", "敏感廠商X"]
+
+def apply_smart_mask(text):
+    if not text:
+        return ""
+    processed = str(text)
+
+    # 規則 1：自定義關鍵字遮罩（保留頭尾兩碼，中間變 ***）
+    for kw in MASK_KEYWORDS:
+        if kw in processed:
+            if len(kw) > 4:
+                masked_kw = kw[:2] + "***" + kw[-2:]
+            else:
+                masked_kw = "***"
+            processed = processed.replace(kw, masked_kw)
+
+    # 規則 2：正規表達式自動攔截料號格式（例如 AB1234C 轉成 AB***C）
+    regex = r'([A-Z]{2})\d{4}([A-Z])'
+    processed = re.sub(regex, r'\1***\2', processed)
+
+    return processed
 
 
 # =========================
@@ -242,10 +269,11 @@ def generate_node_graph_from_rows(rows):
     if not rows:
         return None
 
-    center_name = rows[0].get("center_name")
-
-    if not center_name:
+    # 1. 攔截中心點節點名稱並打馬賽克
+    raw_center_name = rows[0].get("center_name")
+    if not raw_center_name:
         return None
+    center_name = apply_smart_mask(raw_center_name)
 
     graph = nx.DiGraph()
     edge_labels = {}
@@ -261,13 +289,16 @@ def generate_node_graph_from_rows(rows):
     neighbors = []
 
     for row in rows:
-        neighbor_name = row.get("neighbor_name")
+        raw_neighbor_name = row.get("neighbor_name")
         neighbor_labels = row.get("neighbor_labels", [])
         relation_type = row.get("relation_type")
         outgoing = row.get("outgoing")
 
-        if not neighbor_name or not relation_type:
+        if not raw_neighbor_name or not relation_type:
             continue
+
+        # 2. 攔截周圍鄰近節點名稱並打馬賽克
+        neighbor_name = apply_smart_mask(raw_neighbor_name)
 
         if neighbor_name not in graph:
             graph.add_node(neighbor_name)
@@ -365,24 +396,28 @@ def generate_node_graph_from_rows(rows):
 
 def generate_relationship_graph_image(source, relation, target):
     try:
+        # 3. 兩節點關係圖也同步施加馬賽克濾鏡
+        masked_source = apply_smart_mask(source)
+        masked_target = apply_smart_mask(target)
+
         graph = nx.DiGraph()
 
-        graph.add_node(source)
-        graph.add_node(target)
-        graph.add_edge(source, target)
+        graph.add_node(masked_source)
+        graph.add_node(masked_target)
+        graph.add_edge(masked_source, masked_target)
 
         pos = {
-            source: (-1.6, 0),
-            target: (1.6, 0)
+            masked_source: (-1.6, 0),
+            masked_target: (1.6, 0)
         }
 
         node_labels = {
-            source: wrap_label(source, max_len=16),
-            target: wrap_label(target, max_len=16)
+            masked_source: wrap_label(masked_source, max_len=16),
+            masked_target: wrap_label(masked_target, max_len=16)
         }
 
         edge_labels = {
-            (source, target): relation
+            (masked_source, masked_target): relation
         }
 
         plt.figure(figsize=(8, 3))
@@ -424,7 +459,7 @@ def generate_relationship_graph_image(source, relation, target):
         )
 
         plt.title(
-            f"{source} relation graph",
+            f"{masked_source} relation graph",
             fontsize=15,
             fontweight="bold",
             fontfamily=FONT_NAME
