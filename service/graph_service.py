@@ -968,41 +968,32 @@ def query_graph_by_router(payload):
 
     # ===== node_lookup + requested_fields 轉成單節點關聯查詢 =====
     # ===== 單節點 + 指定關係查詢 =====
-    # 支援：
-    # 1. node_lookup + requested_fields
-    # 2. single_node_relation_list
     if intent in ["node_lookup", "single_node_relation_list"] and requested_fields and relation_hint:
-    
         relation_cfg = PROJECT_RELATION_QUERY_MAP.get(relation_hint)
-    
         if relation_cfg:
             best = None
-    
-            # 情況 A：Dify 有正確給 source_entity，例如 MD1054D
+
             if source_entity:
                 candidates = find_candidate_nodes(
                     source_entity,
                     score_cutoff=55,
                     max_results=1
                 )
-    
                 if candidates:
                     best = {
                         "label": candidates[0]["label"],
                         "matched": candidates[0]["name"],
                         "score": candidates[0]["score"]
                     }
-    
-            # 情況 B：舊版 Dify 把 MD1054D 放到 material/project/component
+
             if not best:
                 entity_candidates = get_resolved_entity_candidates(
                     resolved,
                     exclude_fields={"lesson_keyword"}
                 )
-    
                 if entity_candidates:
                     best = entity_candidates[0]
-    
+
             if best:
                 result = query_entity_related_by_relation(
                     source_label=best["label"],
@@ -1012,11 +1003,24 @@ def query_graph_by_router(payload):
                     return_key=relation_cfg["return_key"],
                     limit=limit
                 )
-    
+
+                # 💡 單點指定關係查詢同樣在此觸發生圖
+                image_url = None
+                if result:
+                    try:
+                        image_url = generate_graph_image(result)
+                    except Exception as draw_err:
+                        print(f"繪圖引擎渲染失敗: {str(draw_err)}")
+
                 return {
                     "graph_result": result,
+                    "image_url": image_url,
                     "debug": debug_info
                 }
+
+    # =================================================================
+    # 🎯 【關鍵修正區塊】精準 / 模糊 單一節點數據查詢路徑
+    # =================================================================
     if intent == "node_lookup":
         info, query_mode, error_result = resolve_node_lookup_target(
             user_question=user_question,
@@ -1029,19 +1033,9 @@ def query_graph_by_router(payload):
 
         try:
             query_mode = detect_node_query_mode(relation_hint)
-
             raw = query_node_with_relations(info["label"], info["matched"])
 
-            structured = build_single_node_result(
-                raw,
-                query_mode=query_mode
-            )
-
-            structured = build_single_node_result(
-                raw,
-                query_mode=query_mode
-            )
-
+            structured = build_single_node_result(raw, query_mode=query_mode)
             structured["query_mode"] = query_mode
 
             if relation_hint and info.get("label") != "Lesson_Learned":
@@ -1052,7 +1046,54 @@ def query_graph_by_router(payload):
                 if not filtered:
                     structured["message"] = "目前沒有符合條件的關係資料"
 
-            return {"graph_result": [structured], "debug": debug_info}
+            # -------------------------------------------------------------
+            # 🟢 【強迫生圖核心】重組數據結構，將單點資料攤平成大圖專用結構
+            # -------------------------------------------------------------
+            graph_data_for_drawing = []
+            if isinstance(structured, dict) and structured.get("query_type") == "single_node":
+                node_name = structured.get("node", {}).get("name", "Unknown")
+                node_label = structured.get("node", {}).get("label", "Node")
+                
+                # 將 relations 轉換為繪圖引擎認得的 source -> target 結構
+                for rel in structured.get("relations", []):
+                    if rel.get("direction") == "out":
+                        graph_data_for_drawing.append({
+                            "source": node_name, "source_label": node_label,
+                            "target": rel.get("target"), "target_label": rel.get("target_label"),
+                            "relation": rel.get("type")
+                        })
+                    else:
+                        graph_data_for_drawing.append({
+                            "source": rel.get("target"), "source_label": rel.get("target_label"),
+                            "target": node_name, "target_label": node_label,
+                            "relation": rel.get("type")
+                        })
+                
+                # 保底：若該節點沒有任何對外關係，仍畫出孤立節點，避免死圖
+                if not graph_data_for_drawing:
+                    graph_data_for_drawing.append({
+                        "source": node_name, "source_label": node_label,
+                        "target": None, "target_label": None,
+                        "relation": None
+                    })
+            else:
+                graph_data_for_drawing = [structured]
+
+            # 呼叫生圖引擎
+            image_url = None
+            if graph_data_for_drawing:
+                try:
+                    image_url = generate_graph_image(graph_data_for_drawing)
+                except Exception as draw_err:
+                    print(f"後台單點數據繪圖失敗拋錯: {str(draw_err)}")
+                    image_url = None
+
+            # 同時回傳數據包與圖片連結
+            return {
+                "graph_result": [structured],
+                "image_url": image_url,  # 👈 讓前端、LINE 或 Dify 撈到圖的通關金鑰
+                "debug": debug_info
+            }
 
         except Exception as e:
             return {
@@ -1064,6 +1105,7 @@ def query_graph_by_router(payload):
                 "debug": debug_info
             }
 
+    # ===== 後續其他 Intent 分支保持原樣不閹割 =====
     if intent == "project_lookup" and project:
         if relation_hint == "HAS_LESSON":
             return {"graph_result": query_project_lessons(project), "debug": debug_info}
@@ -1223,6 +1265,7 @@ def query_graph_by_router(payload):
             "graph_result": enriched,
             "debug": debug_info
         }
+
     if intent == "compare_entities" and len(compare_targets) >= 2:
         resolved_targets = []
         for t in compare_targets[:2]:
@@ -1250,7 +1293,6 @@ def query_graph_by_router(payload):
         "graph_result": [{"message": "查詢條件不足，或此類查詢目前尚未支援。"}],
         "debug": debug_info
     }
-
 
 # ==============================================================================
 # 11. Test Helper
