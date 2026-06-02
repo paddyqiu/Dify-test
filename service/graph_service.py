@@ -523,24 +523,16 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
     """
     統一處理 node_lookup 的目標節點與查詢模式。
 
-    規則：
+    優化後規則：
     1. 完全相同名稱優先，直接查該節點。
     2. 若有 relation_hint，代表「某節點 + 某類關係」查詢。
-    3. 若只有模糊候選且多筆，才要求使用者選擇。
+    3. 若無完全相同名稱，但有模糊比對到候選人，直接自動抓「分數最高的第一個」進行繪圖出圖！
     """
     raw_question = clean_text(user_question) or ""
     raw_question = raw_question.strip()
 
     query_suffixes = [
-        "原始問題",
-        "製程",
-        "流程",
-        "材料",
-        "認證",
-        "標準",
-        "部門",
-        "lesson",
-        "教訓"
+        "原始問題", "製程", "流程", "材料", "認證", "標準", "部門", "lesson", "教訓"
     ]
 
     for suffix in query_suffixes:
@@ -557,7 +549,6 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
 
     # ===== 1. 完全相同名稱優先 =====
     exact_matches = []
-
     for c in raw_candidates:
         candidate_name = str(c.get("name", "")).strip().lower()
         if candidate_name == raw_question.lower():
@@ -568,7 +559,6 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
         for c in exact_matches:
             key = (c["name"], c["label"])
             unique_exact[key] = c
-
         exact_matches = list(unique_exact.values())
 
         if len(exact_matches) == 1:
@@ -580,13 +570,60 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": raw_question
             }, "single_node_detail", None
 
-        return None, "ambiguous_node", {
-            "query_type": "ambiguous_node",
-            "found": False,
-            "message": "找到多個完全相同名稱節點，請選擇",
-            "input": raw_question,
-            "candidates": exact_matches[:5]
-        }
+        # 如果有多個完全同名（跨 Label），抓第一個出圖
+        best = exact_matches[0]
+        return {
+            "label": best["label"],
+            "matched": best["name"],
+            "score": 100,
+            "input": raw_question
+        }, "single_node_detail", None
+
+    # ===== 2. 有 relation_hint：節點 + 關係查詢 =====
+    if relation_hint:
+        entity_candidates = get_resolved_entity_candidates(
+            resolved,
+            exclude_fields={"lesson_keyword"}
+        )
+        if entity_candidates:
+            best = entity_candidates[0]
+            return {
+                "label": best["label"],
+                "matched": best["matched"],
+                "score": best["score"],
+                "input": best["input"]
+            }, "node_relation_detail", None
+
+    # ===== 3. 【關鍵修改：模糊詞自動出圖】沒有完全相同的字，但有模糊候選人 =====
+    if raw_candidates:
+        # 排序後的第一個 candidate 就是分數最高、最像的對象（例如輸入 md10 匹配到 md1054）
+        best = raw_candidates[0]
+        
+        # 🟢 【直接放行】不要再回傳 error_result 了，直接回傳這個最像的節點讓後續流程去「畫圖」！
+        return {
+            "label": best["label"],
+            "matched": best["name"],
+            "score": best["score"],
+            "input": raw_question
+        }, "single_node_detail", None
+
+    # ===== 4. 從 Dify 已解析欄位選最高分 =====
+    entity_candidates = get_resolved_entity_candidates(resolved)
+    if entity_candidates:
+        best = entity_candidates[0]
+        mode = "node_relation_detail" if relation_hint else "single_node_detail"
+        return {
+            "label": best["label"],
+            "matched": best["matched"],
+            "score": best["score"],
+            "input": best["input"]
+        }, mode, None
+
+    return None, "single_node_detail", {
+        "query_type": "single_node",
+        "found": False,
+        "message": "無法解析單一節點查詢對象"
+    }
 
     # ===== 2. 有 relation_hint：節點 + 關係查詢 =====
     if relation_hint:
