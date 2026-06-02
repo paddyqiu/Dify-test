@@ -526,7 +526,7 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
     優化後規則：
     1. 完全相同名稱優先，直接查該節點。
     2. 若有 relation_hint，代表「某節點 + 某類關係」查詢。
-    3. 若無完全相同名稱，但有模糊比對到候選人，直接自動抓「分數最高的第一個」進行繪圖出圖！
+    3. 關鍵解鎖：若無完全相同名稱，但有模糊比對候選人，直接自動抓「分數最高的第一個」放行繪圖，不彈出 ambiguous 阻擋文字！
     """
     raw_question = clean_text(user_question) or ""
     raw_question = raw_question.strip()
@@ -570,7 +570,7 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": raw_question
             }, "single_node_detail", None
 
-        # 如果有多個完全同名（跨 Label），抓第一個出圖
+        # 如果有多個完全同名（跨 Label），直接抓第一個放行出圖
         best = exact_matches[0]
         return {
             "label": best["label"],
@@ -594,12 +594,12 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": best["input"]
             }, "node_relation_detail", None
 
-    # ===== 3. 【關鍵修改：模糊詞自動出圖】沒有完全相同的字，但有模糊候選人 =====
+    # ===== 3. 【關鍵解鎖：模糊/精準全面放行】有候選人就直接抓最高分出圖 =====
     if raw_candidates:
-        # 排序後的第一個 candidate 就是分數最高、最像的對象（例如輸入 md10 匹配到 md1054）
+        # 排序後的第一個 candidate 就是分數最高、最像的對象
         best = raw_candidates[0]
         
-        # 🟢 【直接放行】不要再回傳 error_result 了，直接回傳這個最像的節點讓後續流程去「畫圖」！
+        # 🟢 這裡移除了所有會丟出 "ambiguous_node" 阻擋文字的舊代碼，只要有抓到點，一律綠燈放行去畫圖！
         return {
             "label": best["label"],
             "matched": best["name"],
@@ -619,81 +619,13 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
             "input": best["input"]
         }, mode, None
 
+    # ===== 5. 終極保底：真的什麼都找不到，才回傳找不到資料 =====
     return None, "single_node_detail", {
         "query_type": "single_node",
         "found": False,
         "message": "無法解析單一節點查詢對象"
     }
-
-    # ===== 2. 有 relation_hint：節點 + 關係查詢 =====
-    if relation_hint:
-        entity_candidates = get_resolved_entity_candidates(
-            resolved,
-            exclude_fields={"lesson_keyword"}
-        )
-
-        if entity_candidates:
-            best = entity_candidates[0]
-            return {
-                "label": best["label"],
-                "matched": best["matched"],
-                "score": best["score"],
-                "input": best["input"]
-            }, "node_relation_detail", None
-
-    # ===== 3. 沒有 relation_hint：若只有一個高分候選，直接查 =====
-    if raw_candidates:
-        best = raw_candidates[0]
-
-        high_score_candidates = [
-            c for c in raw_candidates
-            if c.get("score", 0) >= 95
-        ]
-
-        if len(high_score_candidates) == 1:
-            best = high_score_candidates[0]
-            return {
-                "label": best["label"],
-                "matched": best["name"],
-                "score": best["score"],
-                "input": raw_question
-            }, "single_node_detail", None
-
-        if len(raw_candidates) == 1:
-            return {
-                "label": best["label"],
-                "matched": best["name"],
-                "score": best["score"],
-                "input": raw_question
-            }, "single_node_detail", None
-
-        return None, "ambiguous_node", {
-            "query_type": "ambiguous_node",
-            "found": False,
-            "message": "找到多個可能節點，請選擇要查詢的項目",
-            "input": raw_question,
-            "candidates": raw_candidates[:5]
-        }
-
-    # ===== 4. 從 Dify 已解析欄位選最高分 =====
-    entity_candidates = get_resolved_entity_candidates(resolved)
-
-    if entity_candidates:
-        best = entity_candidates[0]
-        mode = "node_relation_detail" if relation_hint else "single_node_detail"
-
-        return {
-            "label": best["label"],
-            "matched": best["matched"],
-            "score": best["score"],
-            "input": best["input"]
-        }, mode, None
-
-    return None, "single_node_detail", {
-        "query_type": "single_node",
-        "found": False,
-        "message": "無法解析單一節點查詢對象"
-    }
+      =======================================================
 def detect_node_query_mode(relation_hint):
     if relation_hint:
         return "node_relation_detail"
