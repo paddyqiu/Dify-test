@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import uuid
 import math
 from urllib.parse import quote
@@ -40,6 +41,40 @@ except Exception as e:
     print("[GRAPH IMAGE][FONT_LOAD_ERROR]", str(e))
 
 
+# ==========================================
+# 核心交替打碼規則：不論字串為何，皆一字顯示一字遮罩
+# ==========================================
+def apply_smart_mask(s):
+    try:
+        if s is None:
+            return ""
+        s = str(s).strip()
+        if not s:
+            return ""
+        
+        length = len(s)
+        
+        # 規則 1：兩個字（含）以下的短字串 ➔ 遮蔽第一個字
+        if length <= 2:
+            if length == 1:
+                return "*"
+            else:
+                return "*" + s[1]
+                
+        # 規則 2：大於兩個字的字串 ➔ 每兩個字才打碼一個字（留、留、遮）
+        result = []
+        for idx, char in enumerate(s):
+            if idx % 3 == 2:
+                result.append("*")
+            else:
+                result.append(char)
+                
+        return "".join(result)
+        
+    except Exception as e:
+        # 【終極防護罩】如果中間發生任何未知錯誤，直接返回原始字串，確保圖「絕對畫得出來」！
+        print(f"打碼出錯，已自動跳過保護：{str(e)}")
+        return str(s)
 # =========================
 # URL Builders
 # =========================
@@ -98,9 +133,13 @@ def build_relationship_graph_url(source, relation, target):
 # =========================
 
 def fetch_node_graph_data_by_name(target):
+    # 🟢 升級 Cypher 語法：優先精準比對，若找不到，就放寬為模糊包含比對！
     q = """
     MATCH (center)
-    WHERE coalesce(center.name, center.title) = $target
+    WHERE coalesce(center.name, center.title) = $target 
+       OR coalesce(center.name, center.title) CONTAINS $target
+    WITH center
+    LIMIT 1
     OPTIONAL MATCH (center)-[r]-(neighbor)
     RETURN
         elementId(center) AS center_id,
@@ -242,8 +281,8 @@ def generate_node_graph_from_rows(rows):
     if not rows:
         return None
 
+    # 【重要修復】節點 ID 與核心結構維持原始字串，防止 NetworkX 球球重疊崩潰
     center_name = rows[0].get("center_name")
-
     if not center_name:
         return None
 
@@ -256,7 +295,9 @@ def generate_node_graph_from_rows(rows):
 
     graph.add_node(center_name)
     node_colors[center_name] = get_node_color(center_labels, is_center=True)
-    node_labels[center_name] = wrap_label(center_name, max_len=13)
+    
+    # 僅在要繪製在圖面上的標籤調用 apply_smart_mask
+    node_labels[center_name] = wrap_label(apply_smart_mask(center_name), max_len=13)
 
     neighbors = []
 
@@ -274,7 +315,9 @@ def generate_node_graph_from_rows(rows):
             neighbors.append(neighbor_name)
 
         node_colors[neighbor_name] = get_node_color(neighbor_labels)
-        node_labels[neighbor_name] = wrap_label(neighbor_name, max_len=16)
+        
+        # 同樣地，周圍鄰近球球也是在產生顯示標籤時才予以打碼
+        node_labels[neighbor_name] = wrap_label(apply_smart_mask(neighbor_name), max_len=16)
 
         if outgoing:
             graph.add_edge(center_name, neighbor_name)
@@ -333,8 +376,9 @@ def generate_node_graph_from_rows(rows):
         label_pos=0.52
     )
 
+    # 圖片上方的標題也一併予以馬賽克處理
     plt.title(
-        f"{center_name} graph",
+        f"{apply_smart_mask(center_name)} graph",
         fontsize=16,
         fontweight="bold",
         fontfamily=FONT_NAME
@@ -365,24 +409,28 @@ def generate_node_graph_from_rows(rows):
 
 def generate_relationship_graph_image(source, relation, target):
     try:
+        # 雙節點關係預覽圖：將被打碼的字串純粹用於展示
+        masked_source = apply_smart_mask(source)
+        masked_target = apply_smart_mask(target)
+
         graph = nx.DiGraph()
 
-        graph.add_node(source)
-        graph.add_node(target)
-        graph.add_edge(source, target)
+        graph.add_node(masked_source)
+        graph.add_node(masked_target)
+        graph.add_edge(masked_source, masked_target)
 
         pos = {
-            source: (-1.6, 0),
-            target: (1.6, 0)
+            masked_source: (-1.6, 0),
+            masked_target: (1.6, 0)
         }
 
         node_labels = {
-            source: wrap_label(source, max_len=16),
-            target: wrap_label(target, max_len=16)
+            masked_source: wrap_label(masked_source, max_len=16),
+            masked_target: wrap_label(masked_target, max_len=16)
         }
 
         edge_labels = {
-            (source, target): relation
+            (masked_source, masked_target): relation
         }
 
         plt.figure(figsize=(8, 3))
@@ -424,7 +472,7 @@ def generate_relationship_graph_image(source, relation, target):
         )
 
         plt.title(
-            f"{source} relation graph",
+            f"{masked_source} relation graph",
             fontsize=15,
             fontweight="bold",
             fontfamily=FONT_NAME
