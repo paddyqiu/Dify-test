@@ -100,6 +100,15 @@ CATEGORY_KEYWORD_SEARCH_MAP = {
         "return_key": "projects"
     }
 }
+RELATION_NAME_MAP = {
+    "certification": "HAS_CERTIFICATION",
+    "process": "HAS_PROCESS",
+    "material": "USES_MATERIAL",
+    "component": "INCLUDES",
+    "department": "MUST_DISCUSS_WITH",
+    "lesson": "HAS_LESSON",
+    "partner": "HAS_PARTNER"
+}
 ENTITY_CACHE = {
     "Project": None,
     "Component": None,
@@ -911,15 +920,9 @@ def normalize_intent(payload):
     }:
         return intent
 
-    if project and relation_hint in {
-        "HAS_PROCESS",
-        "HAS_CERTIFICATION",
-        "USES_SPECIFIC_PART",
-        "USES_MATERIAL",
-        "MUST_DISCUSS_WITH",
-        "INCLUDES",
-        "HAS_LESSON"
-    }:
+    payload_relation_hint = clean_text(payload.get("relation_hint"))
+
+    if project and payload_relation_hint in RELATION_NAME_MAP:
         return "project_lookup"
 
     single_entity_count = sum(1 for v in entity_values.values() if v)
@@ -995,7 +998,11 @@ def query_graph_by_router(payload):
     if limit > 20:
         limit = 20
 
-    relation_hint, relation_score = resolve_relation_hint(user_question)
+    payload_relation_hint = clean_text(payload.get("relation_hint"))
+    auto_relation_hint, relation_score = resolve_relation_hint(user_question)
+    
+    relation_hint = payload_relation_hint or auto_relation_hint
+    
     resolved = resolve_entities_from_payload(payload)
     debug_info = build_debug_info(intent, relation_hint, relation_score, resolved)
 
@@ -1008,11 +1015,23 @@ def query_graph_by_router(payload):
     # LPI 相關的 process
     # CE 相關的 certification
     if intent == "category_keyword_search":
-        keyword = source_entity
-        category = None
+        keyword = source_entity or raw_lesson_keyword
+        category = relation_hint
     
-        if relation_hint in CATEGORY_KEYWORD_SEARCH_MAP:
-            category = relation_hint
+        if category == "lesson_learned":
+            category = "lesson"
+    
+        if category not in CATEGORY_KEYWORD_SEARCH_MAP:
+            category = None
+    
+        if not category:
+            for field in requested_fields:
+                if field == "lesson_learned":
+                    field = "lesson"
+    
+                if field in CATEGORY_KEYWORD_SEARCH_MAP:
+                    category = field
+                    break
         else:
             for field in requested_fields:
                 if field in CATEGORY_KEYWORD_SEARCH_MAP:
@@ -1037,9 +1056,9 @@ def query_graph_by_router(payload):
         OPTIONAL MATCH (n)-[r1]->(m)
         OPTIONAL MATCH (x)-[r2]->(n)
         WITH n, r1, m, r2, x
-        WHERE coalesce(n.name, n.title, n.issue_id, n.issue, n.root_cause, n.description, "") CONTAINS $keyword
-           OR coalesce(m.name, m.title, m.issue_id, "") CONTAINS $keyword
-           OR coalesce(x.name, x.title, x.issue_id, "") CONTAINS $keyword
+        WHERE toLower(coalesce(n.name, n.title, n.issue_id, n.issue, n.root_cause, n.description, "")) CONTAINS toLower($keyword)
+           OR toLower(coalesce(m.name, m.title, m.issue_id, "")) CONTAINS toLower($keyword)
+           OR toLower(coalesce(x.name, x.title, x.issue_id, "")) CONTAINS toLower($keyword)
         RETURN {{
             name: coalesce(n.name, n.title, n.issue_id),
             label: head(labels(n)),
@@ -1080,7 +1099,8 @@ def query_graph_by_router(payload):
     # ===== node_lookup + requested_fields 轉成單節點關聯查詢 =====
     # ===== 單節點 + 指定關係查詢 =====
     if intent in ["node_lookup", "single_node_relation_list"] and requested_fields and relation_hint:
-        relation_cfg = PROJECT_RELATION_QUERY_MAP.get(relation_hint)
+        relation_name = RELATION_NAME_MAP.get(relation_hint, relation_hint)
+        relation_cfg = PROJECT_RELATION_QUERY_MAP.get(relation_name)
         if relation_cfg:
             best = None
 
@@ -1109,7 +1129,7 @@ def query_graph_by_router(payload):
                 result = query_entity_related_by_relation(
                     source_label=best["label"],
                     source_name=best["matched"],
-                    relation_name=relation_hint,
+                    relation_name=relation_name,
                     target_label=relation_cfg["target_label"],
                     return_key=relation_cfg["return_key"],
                     limit=limit
