@@ -625,7 +625,7 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
         "found": False,
         "message": "無法解析單一節點查詢對象"
     }
-      =======================================================
+    # =======================================================
 def detect_node_query_mode(relation_hint):
     if relation_hint:
         return "node_relation_detail"
