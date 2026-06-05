@@ -3,6 +3,7 @@ import io
 import re
 import uuid
 import math
+import warnings
 from urllib.parse import quote
 
 import matplotlib
@@ -14,6 +15,11 @@ from matplotlib import font_manager
 
 from config import PUBLIC_BASE_URL
 from service.graph_service import run_cypher
+
+# ==============================================================================
+# 警告過濾器：物理級別封殺 Matplotlib 的箭頭計算警告，保持 Log 乾淨
+# ==============================================================================
+warnings.filterwarnings("ignore", message=".*FancyArrowPatch skipped.*")
 
 
 # =========================
@@ -75,6 +81,7 @@ def apply_smart_mask(s):
         # 【終極防護罩】如果中間發生任何未知錯誤，直接返回原始字串，確保圖「絕對畫得出來」！
         print(f"打碼出錯，已自動跳過保護：{str(e)}")
         return str(s)
+
 # =========================
 # URL Builders
 # =========================
@@ -192,7 +199,7 @@ def wrap_label(text, max_len=14):
     words = text.split()
 
     if len(words) > 1:
-        lines = []
+        options_lines = []
         current = ""
 
         for word in words:
@@ -200,13 +207,13 @@ def wrap_label(text, max_len=14):
                 current = (current + " " + word).strip()
             else:
                 if current:
-                    lines.append(current)
+                    options_lines.append(current)
                 current = word
 
         if current:
-            lines.append(current)
+            options_lines.append(current)
 
-        return "\n".join(lines)
+        return "\n".join(options_lines)
 
     return "\n".join(
         text[i:i + max_len]
@@ -281,7 +288,7 @@ def generate_node_graph_from_rows(rows):
     if not rows:
         return None
 
-    # 【重要修復】節點 ID 與核心結構維持原始字串，防止 NetworkX 球球重疊崩潰
+    # 節點 ID 與核心結構維持原始字串，防止 NetworkX 球球重疊崩潰
     center_name = rows[0].get("center_name")
     if not center_name:
         return None
@@ -348,13 +355,19 @@ def generate_node_graph_from_rows(rows):
         edgecolors="none"
     )
 
+    # 🟢【終極修正一】：透過 node_size 陣列，精準告知有向線條各節點球球的體積。
+    # 搭配 arrowstyle="->,head_width=0.4,head_length=0.5"，Matplotlib 就會自動沿著球球外緣進行縮進，
+    # 絕不把箭頭大半身死塞在圓圈底下了。
     nx.draw_networkx_edges(
         graph,
         pos,
-        arrows=False,
+        node_size=sizes,              # 👈 核心關鍵：傳入完整的 node_size 陣列，讓箭頭知道球球邊界在哪裡
+        arrows=True,
+        arrowstyle="->,head_width=0.4,head_length=0.5",  # 👈 修正為精準的帶頭箭頭樣式
+        arrowsize=14,
         width=1.3,
         edge_color="#8a8a8a",
-        connectionstyle="arc3,rad=0.05"
+        connectionstyle="arc3,rad=0.05"  # 順暢的微彎弧線
     )
 
     nx.draw_networkx_labels(
@@ -435,20 +448,25 @@ def generate_relationship_graph_image(source, relation, target):
 
         plt.figure(figsize=(8, 3))
 
+        relationship_node_sizes = [4800, 4800]
+
         nx.draw_networkx_nodes(
             graph,
             pos,
             node_color=["#18d7df", "#d7f5cf"],
-            node_size=4800,
+            node_size=relationship_node_sizes,
             edgecolors="none"
         )
 
+        # 🟢【終極修正二】：雙節點預覽圖也一併同步，傳入 relationship_node_sizes，
+        # 並讓實心大箭頭 -|> 使用完美縮進。線條會漂亮地貼齊圓圈邊緣，箭頭徹底露出！
         nx.draw_networkx_edges(
             graph,
             pos,
+            node_size=relationship_node_sizes,  # 👈 同步帶入節點體積，防止被塞在底下
             arrows=True,
             arrowstyle="-|>",
-            arrowsize=18,
+            arrowsize=14,
             width=1.4,
             edge_color="#8a8a8a"
         )
