@@ -1051,7 +1051,7 @@ def query_graph_by_router(payload):
         cfg = CATEGORY_KEYWORD_SEARCH_MAP[category]
         label = cfg["label"]
     
-       q = f"""
+        q = f"""
         MATCH (n:{label})
         OPTIONAL MATCH (n)-[r1]->(m)
         OPTIONAL MATCH (x)-[r2]->(n)
