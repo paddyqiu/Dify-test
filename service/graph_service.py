@@ -614,13 +614,13 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
             }, "single_node_detail", None
 
         # 如果有多個完全同名（跨 Label），直接抓第一個放行出圖
-        best = exact_matches[0]
-        return {
-            "label": best["label"],
-            "matched": best["name"],
-            "score": 100,
-            "input": raw_question
-        }, "single_node_detail", None
+        return None, "ambiguous_node", {
+            "query_type": "ambiguous_node",
+            "found": False,
+            "message": "找到多個完全相同名稱節點，請選擇",
+            "input": raw_question,
+            "candidates": exact_matches[:5]
+        }
 
     # ===== 2. 有 relation_hint：節點 + 關係查詢 =====
     if relation_hint:
@@ -637,19 +637,42 @@ def resolve_node_lookup_target(user_question, resolved, relation_hint):
                 "input": best["input"]
             }, "node_relation_detail", None
 
-    # ===== 3. 【關鍵解鎖：模糊/精準全面放行】有候選人就直接抓最高分出圖 =====
+   # ===== 3. 模糊候選處理 =====
     if raw_candidates:
-        # 排序後的第一個 candidate 就是分數最高、最像的對象
         best = raw_candidates[0]
-        
-        # 🟢 這裡移除了所有會丟出 "ambiguous_node" 阻擋文字的舊代碼，只要有抓到點，一律綠燈放行去畫圖！
-        return {
-            "label": best["label"],
-            "matched": best["name"],
-            "score": best["score"],
-            "input": raw_question
-        }, "single_node_detail", None
-
+    
+        high_score_candidates = [
+            c for c in raw_candidates
+            if c.get("score", 0) >= 95
+        ]
+    
+        # 只有一個高分候選，才直接查
+        if len(high_score_candidates) == 1:
+            best = high_score_candidates[0]
+            return {
+                "label": best["label"],
+                "matched": best["name"],
+                "score": best["score"],
+                "input": raw_question
+            }, "single_node_detail", None
+    
+        # 只有一個候選，也可以直接查
+        if len(raw_candidates) == 1:
+            return {
+                "label": best["label"],
+                "matched": best["name"],
+                "score": best["score"],
+                "input": raw_question
+            }, "single_node_detail", None
+    
+        # 多個候選時，回傳選項，不要自動選第一個
+        return None, "ambiguous_node", {
+            "query_type": "ambiguous_node",
+            "found": False,
+            "message": "找到多個可能節點，請選擇要查詢的項目",
+            "input": raw_question,
+            "candidates": raw_candidates[:5]
+        }
     # ===== 4. 從 Dify 已解析欄位選最高分 =====
     entity_candidates = get_resolved_entity_candidates(resolved)
     if entity_candidates:
