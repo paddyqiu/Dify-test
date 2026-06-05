@@ -66,6 +66,40 @@ CHECK_LABEL_MAP = {
     "lesson": "Lesson_Learned",
     "lesson_learned": "Lesson_Learned",
 }
+CATEGORY_KEYWORD_SEARCH_MAP = {
+    "lesson": {
+        "label": "Lesson_Learned",
+        "return_key": "lessons"
+    },
+    "certification": {
+        "label": "Certification",
+        "return_key": "certifications"
+    },
+    "process": {
+        "label": "Process",
+        "return_key": "processes"
+    },
+    "material": {
+        "label": "Material",
+        "return_key": "materials"
+    },
+    "component": {
+        "label": "Component",
+        "return_key": "components"
+    },
+    "department": {
+        "label": "Department",
+        "return_key": "departments"
+    },
+    "partner": {
+        "label": "Partner",
+        "return_key": "partners"
+    },
+    "project": {
+        "label": "Project",
+        "return_key": "projects"
+    }
+}
 ENTITY_CACHE = {
     "Project": None,
     "Component": None,
@@ -871,7 +905,9 @@ def normalize_intent(payload):
         "lesson_lookup",
         "project_lookup",
         "process_lookup",
-        "check_category"
+        "check_category",
+        "single_node_relation_list",
+        "category_keyword_search"
     }:
         return intent
 
@@ -965,6 +1001,81 @@ def query_graph_by_router(payload):
 
     project = resolved.get("project", {}).get("matched")
     process_name = resolved.get("process", {}).get("matched")
+
+    # ===== 通用：在指定類別中搜尋關鍵詞 =====
+    # 例如：
+    # FPC 相關的 lesson learned
+    # LPI 相關的 process
+    # CE 相關的 certification
+    if intent == "category_keyword_search":
+        keyword = source_entity
+        category = None
+    
+        if relation_hint in CATEGORY_KEYWORD_SEARCH_MAP:
+            category = relation_hint
+        else:
+            for field in requested_fields:
+                if field in CATEGORY_KEYWORD_SEARCH_MAP:
+                    category = field
+                    break
+    
+        if not keyword or not category:
+            return {
+                "graph_result": [{
+                    "query_type": "category_keyword_search",
+                    "found": False,
+                    "message": "缺少搜尋關鍵字或主題類別"
+                }],
+                "debug": debug_info
+            }
+    
+        cfg = CATEGORY_KEYWORD_SEARCH_MAP[category]
+        label = cfg["label"]
+    
+        q = f"""
+        MATCH (n:{label})
+        OPTIONAL MATCH (n)-[r1]->(m)
+        OPTIONAL MATCH (x)-[r2]->(n)
+        WITH n, r1, m, r2, x
+        WHERE coalesce(n.name, n.title, n.issue_id, n.issue, n.root_cause, n.description, "") CONTAINS $keyword
+           OR coalesce(m.name, m.title, m.issue_id, "") CONTAINS $keyword
+           OR coalesce(x.name, x.title, x.issue_id, "") CONTAINS $keyword
+        RETURN {{
+            name: coalesce(n.name, n.title, n.issue_id),
+            label: head(labels(n)),
+            properties: properties(n),
+            outgoing_relations: collect(DISTINCT {{
+                relation: type(r1),
+                target: coalesce(m.name, m.title, m.issue_id),
+                target_label: CASE WHEN m IS NOT NULL THEN head(labels(m)) ELSE NULL END
+            }}),
+            incoming_relations: collect(DISTINCT {{
+                relation: type(r2),
+                source: coalesce(x.name, x.title, x.issue_id),
+                source_label: CASE WHEN x IS NOT NULL THEN head(labels(x)) ELSE NULL END
+            }})
+        }} AS item
+        LIMIT $limit
+        """
+    
+        result = run_cypher(q, {
+            "keyword": keyword,
+            "limit": limit
+        })
+    
+        return {
+            "graph_result": [{
+                "query_type": "category_keyword_search",
+                "found": len(result) > 0,
+                "keyword": keyword,
+                "category": category,
+                "label": label,
+                "count": len(result),
+                cfg["return_key"]: result,
+                "items": result
+            }],
+            "debug": debug_info
+        }
 
     # ===== node_lookup + requested_fields 轉成單節點關聯查詢 =====
     # ===== 單節點 + 指定關係查詢 =====
