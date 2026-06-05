@@ -1051,7 +1051,7 @@ def query_graph_by_router(payload):
         cfg = CATEGORY_KEYWORD_SEARCH_MAP[category]
         label = cfg["label"]
     
-        q = f"""
+       q = f"""
         MATCH (n:{label})
         OPTIONAL MATCH (n)-[r1]->(m)
         OPTIONAL MATCH (x)-[r2]->(n)
@@ -1059,20 +1059,30 @@ def query_graph_by_router(payload):
         WHERE toLower(coalesce(n.name, n.title, n.issue_id, n.issue, n.root_cause, n.description, "")) CONTAINS toLower($keyword)
            OR toLower(coalesce(m.name, m.title, m.issue_id, "")) CONTAINS toLower($keyword)
            OR toLower(coalesce(x.name, x.title, x.issue_id, "")) CONTAINS toLower($keyword)
+        WITH
+            n,
+            collect(DISTINCT {{
+                relation: type(r1),
+                target: coalesce(m.name, m.title, m.issue_id),
+                target_label: CASE WHEN m IS NOT NULL THEN head(labels(m)) ELSE NULL END
+            }}) AS outgoing_relations,
+            collect(DISTINCT {{
+                relation: type(r2),
+                source: coalesce(x.name, x.title, x.issue_id),
+                source_label: CASE WHEN x IS NOT NULL THEN head(labels(x)) ELSE NULL END
+            }}) AS incoming_relations
         RETURN {{
             name: coalesce(n.name, n.title, n.issue_id),
             label: head(labels(n)),
             properties: properties(n),
-            outgoing_relations: collect(DISTINCT {{
-                relation: type(r1),
-                target: coalesce(m.name, m.title, m.issue_id),
-                target_label: CASE WHEN m IS NOT NULL THEN head(labels(m)) ELSE NULL END
-            }}),
-            incoming_relations: collect(DISTINCT {{
-                relation: type(r2),
-                source: coalesce(x.name, x.title, x.issue_id),
-                source_label: CASE WHEN x IS NOT NULL THEN head(labels(x)) ELSE NULL END
-            }})
+            outgoing_relations: [
+                item IN outgoing_relations
+                WHERE item.relation IS NOT NULL AND item.target IS NOT NULL
+            ],
+            incoming_relations: [
+                item IN incoming_relations
+                WHERE item.relation IS NOT NULL AND item.source IS NOT NULL
+            ]
         }} AS item
         LIMIT $limit
         """
